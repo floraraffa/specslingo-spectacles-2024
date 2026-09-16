@@ -1,0 +1,140 @@
+- !<AssetImportMetadata/b752758e-14e3-4d1d-89fe-d0bbbea17aca>
+  ImportedAssetIds:
+    TypeScriptAsset: !<reference> 6526783d-d302-4ce2-a416-afc52f4dd15b
+  ImporterName: TypeScriptAssetImporter
+  PrimaryAsset: !<reference> 6526783d-d302-4ce2-a416-afc52f4dd15b
+  PackageType: NotAPackage
+  LegacyPackagePolicy: ~
+  ExtraData:
+    {}
+  AssetDataMap:
+    TypeScriptAsset: !<own> 5bdf10bb-5459-4b43-99a3-a9149bb4a0c1
+  DependentFiles:
+    []
+  ImporterSettings: !<AssetImporterSettings>
+    {}
+  CompressionSettings: !<own> 00000000-0000-0000-0000-000000000000
+- !<TypeScriptAssetData/5bdf10bb-5459-4b43-99a3-a9149bb4a0c1>
+  SvgIcon: ""
+  SetupScript:
+    code: ""
+  Description: ""
+  VersionMajor: 0
+  VersionMinor: 0
+  VersionPatch: 0
+  ComponentUid: 4566fcf8-b240-45da-957f-0875cb920d76
+  ExportUid: 00000000-0000-0000-0000-000000000000
+  PackagePolicy: CanBeUnpacked
+  ScriptInputsHidden:
+    englishImageCards: false
+    englishImageCardsSelected: false
+    englishScanWorld: false
+    englishScanWorldSelected: false
+    frenchImageCards: false
+    frenchImageCardsSelected: false
+    frenchScanWorld: false
+    frenchScanWorldSelected: false
+    germanImageCards: false
+    germanImageCardsSelected: false
+    germanScanWorld: false
+    germanScanWorldSelected: false
+    italianImageCards: false
+    italianImageCardsSelected: false
+    italianScanWorld: false
+    italianScanWorldSelected: false
+    japaneseImageCards: false
+    japaneseImageCardsSelected: false
+    japaneseScanWorld: false
+    japaneseScanWorldSelected: false
+    menuSubtitle: false
+    menuTitle: false
+    readyHint: false
+    spanishImageCards: false
+    spanishImageCardsSelected: false
+    spanishScanWorld: false
+    spanishScanWorldSelected: false
+  ScriptTypesHidden:
+    {}
+  ReadMe: !<reference> 00000000-0000-0000-0000-000000000000
+  DeclarationFile: !<reference> 00000000-0000-0000-0000-000000000000
+  Tags:
+    []
+  Attachments:
+    []
+  DefaultScriptInputs:
+    - menuTitle: LINGO SPECS
+      menuSubtitle: Build a language world around your life.
+      readyHint: "Listen, speak, scan and organize your world."
+      spanishImageCards: !<reference.Texture> 00000000-0000-0000-0000-000000000000
+      spanishImageCardsSelected: !<reference.Texture> 00000000-0000-0000-0000-000000000000
+      spanishScanWorld: !<reference.Texture> 00000000-0000-0000-0000-000000000000
+      spanishScanWorldSelected: !<reference.Texture> 00000000-0000-0000-0000-000000000000
+      englishImageCards: !<reference.Texture> 00000000-0000-0000-0000-000000000000
+      englishImageCardsSelected: !<reference.Texture> 00000000-0000-0000-0000-000000000000
+      englishScanWorld: !<reference.Texture> 00000000-0000-0000-0000-000000000000
+      englishScanWorldSelected: !<reference.Texture> 00000000-0000-0000-0000-000000000000
+      germanImageCards: !<reference.Texture> 00000000-0000-0000-0000-000000000000
+      germanImageCardsSelected: !<reference.Texture> 00000000-0000-0000-0000-000000000000
+      germanScanWorld: !<reference.Texture> 00000000-0000-0000-0000-000000000000
+      germanScanWorldSelected: !<reference.Texture> 00000000-0000-0000-0000-000000000000
+      frenchImageCards: !<reference.Texture> 00000000-0000-0000-0000-000000000000
+      frenchImageCardsSelected: !<reference.Texture> 00000000-0000-0000-0000-000000000000
+      frenchScanWorld: !<reference.Texture> 00000000-0000-0000-0000-000000000000
+      frenchScanWorldSelected: !<reference.Texture> 00000000-0000-0000-0000-000000000000
+      italianImageCards: !<reference.Texture> 00000000-0000-0000-0000-000000000000
+      italianImageCardsSelected: !<reference.Texture> 00000000-0000-0000-0000-000000000000
+      italianScanWorld: !<reference.Texture> 00000000-0000-0000-0000-000000000000
+      italianScanWorldSelected: !<reference.Texture> 00000000-0000-0000-0000-000000000000
+      japaneseImageCards: !<reference.Texture> 00000000-0000-0000-0000-000000000000
+      japaneseImageCardsSelected: !<reference.Texture> 00000000-0000-0000-0000-000000000000
+      japaneseScanWorld: !<reference.Texture> 00000000-0000-0000-0000-000000000000
+      japaneseScanWorldSelected: !<reference.Texture> 00000000-0000-0000-0000-000000000000
+  ScriptTypes:
+    -
+      {}
+  InputLines:
+    - '// @ui {"widget":"label", "label":"<span style=\"color: #A78BFA;\">Lingo Specs Menu – kawaii setup flow</span>"}'
+    - '// @ui {"widget":"separator"}'
+    - '// @ui {"widget":"group_start", "label":"Settings"}'
+    - '// @input string menuTitle = "LINGO SPECS" {"hint":"Brand title shown above the setup flow"}'
+    - '// @input string menuSubtitle = "Build a language world around your life." {"hint":"Short promise shown under the brand title"}'
+    - '// @input string readyHint = "Listen, speak, scan and organize your world." {"hint":"Helper line displayed on the final setup step"}'
+    - '// @ui {"widget":"group_end"}'
+    - '// @ui {"widget":"label", "label":"<span style=\"color: #A78BFA;\">Mode artwork by native language</span>"}'
+    - '// @ui {"widget":"separator"}'
+    - '// @ui {"widget":"group_start", "label":"Spanish artwork"}'
+    - '// @input Asset.Texture spanishImageCards {"hint":"AI Image Cards in Spanish. Empty uses the original image-cards.png artwork."}'
+    - '// @input Asset.Texture spanishImageCardsSelected {"hint":"Selected AI Image Cards in Spanish. Empty uses image-cards-selected.png."}'
+    - '// @input Asset.Texture spanishScanWorld {"hint":"Scan My World in Spanish. Empty uses the original scan-my-world.png artwork."}'
+    - '// @input Asset.Texture spanishScanWorldSelected {"hint":"Selected Scan My World in Spanish. Empty uses scan-my-world-selected.png."}'
+    - '// @ui {"widget":"group_end"}'
+    - '// @ui {"widget":"group_start", "label":"English artwork"}'
+    - '// @input Asset.Texture englishImageCards {"hint":"AI Image Cards in English. Empty uses the original image-cards.png artwork."}'
+    - '// @input Asset.Texture englishImageCardsSelected {"hint":"Selected AI Image Cards in English. Empty uses image-cards-selected.png."}'
+    - '// @input Asset.Texture englishScanWorld {"hint":"Scan My World in English. Empty uses the original scan-my-world.png artwork."}'
+    - '// @input Asset.Texture englishScanWorldSelected {"hint":"Selected Scan My World in English. Empty uses scan-my-world-selected.png."}'
+    - '// @ui {"widget":"group_end"}'
+    - '// @ui {"widget":"group_start", "label":"German artwork"}'
+    - '// @input Asset.Texture germanImageCards {"hint":"AI Image Cards in German. Empty uses the original image-cards.png artwork."}'
+    - '// @input Asset.Texture germanImageCardsSelected {"hint":"Selected AI Image Cards in German. Empty uses image-cards-selected.png."}'
+    - '// @input Asset.Texture germanScanWorld {"hint":"Scan My World in German. Empty uses the original scan-my-world.png artwork."}'
+    - '// @input Asset.Texture germanScanWorldSelected {"hint":"Selected Scan My World in German. Empty uses scan-my-world-selected.png."}'
+    - '// @ui {"widget":"group_end"}'
+    - '// @ui {"widget":"group_start", "label":"French artwork"}'
+    - '// @input Asset.Texture frenchImageCards {"hint":"AI Image Cards in French. Empty uses the original image-cards.png artwork."}'
+    - '// @input Asset.Texture frenchImageCardsSelected {"hint":"Selected AI Image Cards in French. Empty uses image-cards-selected.png."}'
+    - '// @input Asset.Texture frenchScanWorld {"hint":"Scan My World in French. Empty uses the original scan-my-world.png artwork."}'
+    - '// @input Asset.Texture frenchScanWorldSelected {"hint":"Selected Scan My World in French. Empty uses scan-my-world-selected.png."}'
+    - '// @ui {"widget":"group_end"}'
+    - '// @ui {"widget":"group_start", "label":"Italian artwork"}'
+    - '// @input Asset.Texture italianImageCards {"hint":"AI Image Cards in Italian. Empty uses the original image-cards.png artwork."}'
+    - '// @input Asset.Texture italianImageCardsSelected {"hint":"Selected AI Image Cards in Italian. Empty uses image-cards-selected.png."}'
+    - '// @input Asset.Texture italianScanWorld {"hint":"Scan My World in Italian. Empty uses the original scan-my-world.png artwork."}'
+    - '// @input Asset.Texture italianScanWorldSelected {"hint":"Selected Scan My World in Italian. Empty uses scan-my-world-selected.png."}'
+    - '// @ui {"widget":"group_end"}'
+    - '// @ui {"widget":"group_start", "label":"Japanese artwork"}'
+    - '// @input Asset.Texture japaneseImageCards {"hint":"AI Image Cards in Japanese. Empty uses the original image-cards.png artwork."}'
+    - '// @input Asset.Texture japaneseImageCardsSelected {"hint":"Selected AI Image Cards in Japanese. Empty uses image-cards-selected.png."}'
+    - '// @input Asset.Texture japaneseScanWorld {"hint":"Scan My World in Japanese. Empty uses the original scan-my-world.png artwork."}'
+    - '// @input Asset.Texture japaneseScanWorldSelected {"hint":"Selected Scan My World in Japanese. Empty uses scan-my-world-selected.png."}'
+    - '// @ui {"widget":"group_end"}'

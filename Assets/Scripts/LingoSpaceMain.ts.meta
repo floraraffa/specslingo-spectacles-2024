@@ -1,0 +1,74 @@
+- !<AssetImportMetadata/2d08d197-efba-4bcb-9d95-03b4c3c3b529>
+  ImportedAssetIds:
+    TypeScriptAsset: !<reference> e01ec0ed-4d08-4345-a820-1aaeae4e1a02
+  ImporterName: TypeScriptAssetImporter
+  PrimaryAsset: !<reference> e01ec0ed-4d08-4345-a820-1aaeae4e1a02
+  PackageType: NotAPackage
+  LegacyPackagePolicy: ~
+  ExtraData:
+    {}
+  AssetDataMap:
+    TypeScriptAsset: !<own> a69c4903-dc1e-40e1-bfdd-8cb72135eb4d
+  DependentFiles:
+    []
+  ImporterSettings: !<AssetImporterSettings>
+    {}
+  CompressionSettings: !<own> 00000000-0000-0000-0000-000000000000
+- !<TypeScriptAssetData/a69c4903-dc1e-40e1-bfdd-8cb72135eb4d>
+  SvgIcon: ""
+  SetupScript:
+    code: ""
+  Description: ""
+  VersionMajor: 0
+  VersionMinor: 0
+  VersionPatch: 0
+  ComponentUid: cda4804a-dc27-430c-8842-f3a653ada31a
+  ExportUid: 00000000-0000-0000-0000-000000000000
+  PackagePolicy: CanBeUnpacked
+  ScriptInputsHidden:
+    backgroundMusic: false
+    backgroundMusicVolume: false
+    boardUI: false
+    completionUI: false
+    debugColliders: false
+    followHead: false
+    headFollowBufferDegrees: false
+    headFollowEasing: false
+    menuUI: false
+    spatialDistance: false
+    spatialScale: false
+  ScriptTypesHidden:
+    {}
+  ReadMe: !<reference> 00000000-0000-0000-0000-000000000000
+  DeclarationFile: !<reference> 00000000-0000-0000-0000-000000000000
+  Tags:
+    []
+  Attachments:
+    []
+  DefaultScriptInputs:
+    - menuUI: !<MappingBased.AssignableType> 00000000-0000-0000-0000-000000000000
+      boardUI: !<MappingBased.AssignableType_1> 00000000-0000-0000-0000-000000000000
+      completionUI: !<MappingBased.AssignableType_2> 00000000-0000-0000-0000-000000000000
+      debugColliders: false
+      backgroundMusic: !<reference.AudioTrackAsset> b4fb41ef-c1b8-4129-8710-f6c122f5e9c5
+      backgroundMusicVolume: 0.050000
+      followHead: true
+      spatialDistance: !<float> 120.000000
+      spatialScale: 0.920000
+      headFollowEasing: 0.180000
+      headFollowBufferDegrees: !<float> 4.000000
+  ScriptTypes:
+    -
+      {}
+  InputLines:
+    - '// @input AssignableType menuUI {"hint":"Three-step setup UIKit module"}'
+    - '// @input AssignableType_1 boardUI {"hint":"Spatial organization UIKit module"}'
+    - '// @input AssignableType_2 completionUI {"hint":"Round completion UIKit module"}'
+    - '// @input bool debugColliders {"hint":"Show collider debug visuals"}'
+    - '// @input Asset.AudioTrackAsset backgroundMusic {"hint":"Optional background AudioTrack. Leave empty for silence; drag your own music here in the Inspector."}'
+    - '// @input float backgroundMusicVolume = 0.06 {"hint":"Background music volume from 0 (silent) to 1 (full volume). Recommended: 0.06."}'
+    - "// @input bool followHead = true {\"hint\":\"Keep the spatial board within the user's view using smooth head following.\"}"
+    - "// @input float spatialDistance = 120 {\"hint\":\"Distance of the spatial board from the user's head, in centimeters.\"}"
+    - '// @input float spatialScale = 0.92 {"hint":"Scale of the complete spatial UI. 0.92 keeps it inside the SPECS comfort area."}'
+    - '// @input float headFollowEasing = 0.18 {"hint":"Head-follow smoothing. Lower values feel more spatial; higher values follow faster."}'
+    - '// @input float headFollowBufferDegrees = 4 {"hint":"Degrees the user can look away before the UI begins to follow."}'

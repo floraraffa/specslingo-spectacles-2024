@@ -1,0 +1,39 @@
+# Shipped by Lens Studio
+
+# The lines below are automatically generated and updated by Lens Studio.
+# Please do not modify them manually, as changes will be overwritten each time!
+# If you want to make changes to this file, please put them either above or below this section.
+
+Cache/**
+PluginsUserPreferences/**
+Support/**
+BackUp/**
+Workspaces/**
+.vscode/
+/jsconfig.json
+/tsconfig.json
+.DS_Store
+*.lock
+
+# Shipped by Lens Studio
+# Lens Studio generated / local state
+Cache/
+Workspaces/
+PluginsUserPreferences/
+Support/
+CompatibilityArchive/
+*.lock
+
+# Secrets — never publish
+spk_debug_key.pem
+*.pem
+
+# OS noise
+.DS_Store
+
+# Local tool configs (contain local MCP auth tokens)
+.claude/
+.codex/
+.cursor/
+.font_tmp/
+.mcp.json

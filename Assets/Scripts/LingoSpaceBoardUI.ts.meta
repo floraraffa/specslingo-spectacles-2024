@@ -1,0 +1,75 @@
+- !<AssetImportMetadata/887d402c-2030-4dc3-8280-bbcc88aa170d>
+  ImportedAssetIds:
+    TypeScriptAsset: !<reference> 63cbd223-b13e-42c3-bb4d-fe13f1376395
+  ImporterName: TypeScriptAssetImporter
+  PrimaryAsset: !<reference> 63cbd223-b13e-42c3-bb4d-fe13f1376395
+  PackageType: NotAPackage
+  LegacyPackagePolicy: ~
+  ExtraData:
+    {}
+  AssetDataMap:
+    TypeScriptAsset: !<own> 24d7b067-60a4-41a9-b71f-fa79e2cfa83c
+  DependentFiles:
+    []
+  ImporterSettings: !<AssetImporterSettings>
+    {}
+  CompressionSettings: !<own> 00000000-0000-0000-0000-000000000000
+- !<TypeScriptAssetData/24d7b067-60a4-41a9-b71f-fa79e2cfa83c>
+  SvgIcon: ""
+  SetupScript:
+    code: ""
+  Description: ""
+  VersionMajor: 0
+  VersionMinor: 0
+  VersionPatch: 0
+  ComponentUid: 2e6c1507-e2bb-4ae3-97da-2f61210d54a4
+  ExportUid: 00000000-0000-0000-0000-000000000000
+  PackagePolicy: CanBeUnpacked
+  ScriptInputsHidden:
+    cardRoot: false
+    foodRoot: false
+    homeRoot: false
+    imageCoachPrompt: false
+    outsideRoot: false
+    peopleRoot: false
+    scanCoachPrompt: false
+    travelRoot: false
+    workRoot: false
+  ScriptTypesHidden:
+    {}
+  ReadMe: !<reference> 00000000-0000-0000-0000-000000000000
+  DeclarationFile: !<reference> 00000000-0000-0000-0000-000000000000
+  Tags:
+    []
+  Attachments:
+    []
+  DefaultScriptInputs:
+    - cardRoot: !<reference.SceneObject> 00000000-0000-0000-0000-000000000000
+      homeRoot: !<reference.SceneObject> 00000000-0000-0000-0000-000000000000
+      foodRoot: !<reference.SceneObject> 00000000-0000-0000-0000-000000000000
+      workRoot: !<reference.SceneObject> 00000000-0000-0000-0000-000000000000
+      travelRoot: !<reference.SceneObject> 00000000-0000-0000-0000-000000000000
+      peopleRoot: !<reference.SceneObject> 00000000-0000-0000-0000-000000000000
+      outsideRoot: !<reference.SceneObject> 00000000-0000-0000-0000-000000000000
+      imageCoachPrompt: "Cloudy says: listen, speak, then drag the card to its place."
+      scanCoachPrompt: "Cloudy says: keep several objects visible and scan your space."
+  ScriptTypes:
+    -
+      {}
+  InputLines:
+    - '// @ui {"widget":"label", "label":"<span style=\"color: #A78BFA;\">Lingo Specs Board – spatial vocabulary organizer</span>"}'
+    - '// @ui {"widget":"separator"}'
+    - '// @ui {"widget":"group_start", "label":"References"}'
+    - '// @input SceneObject cardRoot {"hint":"Authored root used for the draggable vocabulary card"}'
+    - '// @input SceneObject homeRoot {"hint":"Authored HOME collection target"}'
+    - '// @input SceneObject foodRoot {"hint":"Authored FOOD collection target"}'
+    - '// @input SceneObject workRoot {"hint":"Authored WORK collection target"}'
+    - '// @input SceneObject travelRoot {"hint":"Authored TRAVEL collection target"}'
+    - '// @input SceneObject peopleRoot {"hint":"Authored PEOPLE collection target"}'
+    - '// @input SceneObject outsideRoot {"hint":"Authored OUTSIDE collection target"}'
+    - '// @ui {"widget":"group_end"}'
+    - '// @ui {"widget":"separator"}'
+    - '// @ui {"widget":"group_start", "label":"Settings"}'
+    - '// @input string imageCoachPrompt = "Cloudy says: listen, speak, then drag the card to its place." {"hint":"Coach sentence shown below the action buttons in image-card mode"}'
+    - '// @input string scanCoachPrompt = "Cloudy says: keep several objects visible and scan your space." {"hint":"Coach sentence shown while scanning real objects"}'
+    - '// @ui {"widget":"group_end"}'
