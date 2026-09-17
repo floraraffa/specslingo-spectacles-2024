@@ -5,6 +5,7 @@ import {FlexAlign, FlexAlignSelf, FlexDirection, FlexJustify} from "./compat515/
 import {RoundedRectangleVisual} from "SpectaclesUIKit.lspkg/Scripts/Visuals/RoundedRectangle/RoundedRectangleVisual"
 import {Button515 as Button} from "./compat515/Button515"
 import {LingoFX} from "./LingoSpaceFX"
+import {deferDestroy} from "./LingoSpaceDeferredDestroy"
 import {IMAGE_MATERIAL_ASSET} from "SpectaclesUIKit.lspkg/Scripts/Components/Element"
 import Event, {PublicApi} from "SpectaclesInteractionKit.lspkg/Utils/Event"
 import {Interactable} from "SpectaclesInteractionKit.lspkg/Components/Interaction/Interactable/Interactable"
@@ -547,7 +548,7 @@ export class LingoSpaceQuizUI {
       this.pageItem = null
     }
     if (this.pageRoot) {
-      this.pageRoot.destroy()
+      deferDestroy(this.host, this.pageRoot)
       this.pageRoot = null
     }
     this.artworkMaterial = null

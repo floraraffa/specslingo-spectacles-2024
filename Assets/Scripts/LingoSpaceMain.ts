@@ -5,6 +5,7 @@ import {LingoSpaceCompletionUI} from "./LingoSpaceCompletionUI"
 import {LingoSpaceQuizUI, QuizCard} from "./LingoSpaceQuizUI"
 import {GlossaryEntry, LingoSpaceGlossaryUI} from "./LingoSpaceGlossaryUI"
 import {LingoSpaceLanguagePicker} from "./LingoSpaceLanguagePicker"
+import {LingoSpaceNightMode} from "./LingoSpaceNightMode"
 import {LingoFX} from "./LingoSpaceFX"
 import {
   CategoryId,
@@ -147,7 +148,7 @@ export class LingoSpaceMain extends BaseScriptComponent {
     this.ai = new LingoSpaceAIService(this.sceneObject)
     // Background music dips while the AI voice talks, mirroring the mic ducking.
     this.ai.setSpeechHooks(() => this.audio.duckMusic(), () => this.audio.restoreMusic())
-    this.glossaryUI = new LingoSpaceGlossaryUI(this.sceneObject, this, this.audio, () => this.glossaryEntries(), (word) => this.speakGlossaryWord(word), () => this.openLanguagePicker())
+    this.glossaryUI = new LingoSpaceGlossaryUI(this.sceneObject, this, this.audio, () => this.glossaryEntries(), (word) => this.speakGlossaryWord(word), () => this.openLanguagePicker(), () => this.toggleWhisperMode())
     this.languagePicker = new LingoSpaceLanguagePicker(this, this.audio, (language) => this.applyTargetLanguageChange(language))
     this.fx = new LingoFX(this)
     this.quizUI = new LingoSpaceQuizUI(this.sceneObject, this, this.audio)
@@ -1316,6 +1317,20 @@ export class LingoSpaceMain extends BaseScriptComponent {
     this.menuUI.resetFlow()
     this.menuUI.show()
     this.fx.popIn(this.menuUI.sceneObject, {rotateDegrees: -8})
+  }
+
+  private whisperMode = false
+  private nightMode: LingoSpaceNightMode | null = null
+
+  /** Whisper mode: soft coach voice, hushed sounds AND a starry night dome —
+   * the moon chip turns the room into a quiet focus cocoon. */
+  private toggleWhisperMode(): boolean {
+    this.whisperMode = !this.whisperMode
+    this.ai.setWhisperMode(this.whisperMode)
+    this.audio.setQuietMode(this.whisperMode)
+    if (!this.nightMode) this.nightMode = new LingoSpaceNightMode(this)
+    this.nightMode.setActive(this.whisperMode)
+    return this.whisperMode
   }
 
   private openLanguagePicker(): void {

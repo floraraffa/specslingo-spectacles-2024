@@ -49,9 +49,25 @@ export class LingoSpaceAudioController {
   }
 
   private musicEnabled = true
+  private quietMode = false
 
   isMusicEnabled(): boolean {
     return this.musicEnabled
+  }
+
+  /** Whisper mode: everything the Lens emits drops to library volume. */
+  setQuietMode(on: boolean): void {
+    if (this.quietMode === on) return
+    this.quietMode = on
+    const scale = on ? 0.35 : 1
+    this.click.volume = 0.55 * scale
+    this.saved.volume = 0.22 * scale
+    this.softReturn.volume = 0.4 * scale
+    this.applyMusicVolume()
+  }
+
+  isQuietMode(): boolean {
+    return this.quietMode
   }
 
   hasMusic(): boolean {
@@ -71,7 +87,8 @@ export class LingoSpaceAudioController {
       this.music.volume = 0
       return
     }
-    this.music.volume = this.duckCount > 0 ? Math.min(this.baseMusicVolume, 0.008) : this.baseMusicVolume
+    const base = this.baseMusicVolume * (this.quietMode ? 0.4 : 1)
+    this.music.volume = this.duckCount > 0 ? Math.min(base, 0.008) : base
   }
 
   private create(owner: SceneObject, track: AudioTrackAsset, volume: number): AudioComponent {

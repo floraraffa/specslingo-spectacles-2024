@@ -75,6 +75,14 @@ export class LingoSpaceAIService {
   /** True once the spatializer has been configured (first anchored speech). */
   private spatialConfigured = false
 
+  private whisperMode = false
+
+  /** Whisper mode: the coach speaks softly for practice in public places. */
+  setWhisperMode(on: boolean): void {
+    this.whisperMode = on
+    this.voiceAudio.volume = on ? 0.45 : 0.9
+  }
+
   /** Where the NEXT utterance should come from: a card's world anchor so the
    * object itself appears to speak, or the wearer (null) for coaching and menu
    * guidance. Applied when that utterance actually starts playing, so a slow
@@ -109,6 +117,7 @@ export class LingoSpaceAIService {
         ? `Vocabulary already learned this session: ${knownWords.join(", ")}. If a detected object IS one of these, reuse EXACTLY that word spelling for its word field. Never add an object merely because it appears in this list.`
         : "",
       "First classify the environment: name the specific room or place actually visible (for example living room, bedroom, kitchen, bathroom, office, café, street or shop), judging only from the furniture and layout in this exact image.",
+      "Environment accuracy is critical: a kitchen (sink, stove, dishes, washing machine), a bathroom, a bedroom, an office and a living room must never be confused with each other. If the image shows appliances or fixtures, name THAT room even if it seems unexpected.",
       "Keep situation and situationTranslation to one or two words naming that environment; never reuse an environment from any previous scene.",
       "Judge ONLY this image: never assume objects from typical room layouts or from any previous scene.",
       "Identify one to five distinct, clearly visible useful objects. Do not include blurry, hidden, duplicated or uncertain objects.",
@@ -442,11 +451,14 @@ export class LingoSpaceAIService {
     // Each utterance owns the anchor set when it was requested, applied only
     // when its audio is ready to play.
     const anchor = this.pendingSpeechAnchor
+    const spokenInstructions = this.whisperMode
+      ? `Whisper very softly and gently, close and intimate. ${instructions}`
+      : instructions
     return OpenAI.speech({
       model: "gpt-4o-mini-tts",
       input: text,
       voice: "coral",
-      instructions,
+      instructions: spokenInstructions,
     }).then((track) => {
       this.applySpeechAnchor(anchor)
       this.voiceAudio.audioTrack = track

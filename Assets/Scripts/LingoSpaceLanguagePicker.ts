@@ -96,7 +96,7 @@ export class LingoSpaceLanguagePicker {
     styleLingoButton(close, "neutral")
     close.size = new vec3(3.4, 3.4, 1)
     close.onInitialized.add(() => close.size = new vec3(3.4, 3.4, 1))
-    this.addText(closeRoot, "✕", 3, 2.4, 40, LINGO_COLORS.white, new vec3(0, 0, 1.2))
+    this.addText(closeRoot, "✕", 3, 2.4, 40, LINGO_COLORS.white, new vec3(0, 0, 1.2), ORDER.buttonText)
     close.onTriggerUp.add(() => {
       this.audio.playClick()
       this.hide()
@@ -116,7 +116,9 @@ export class LingoSpaceLanguagePicker {
       button.size = new vec3(15.6, 4.6, 1)
       button.onInitialized.add(() => button.size = new vec3(15.6, 4.6, 1))
       this.addIcon(buttonRoot, LANGUAGE_CLOUDS[language], 4.2, new vec3(-5.4, 0.1, 1.2))
-      const label = this.addText(buttonRoot, language, 10.2, 2.6, 40, LINGO_COLORS.ink, new vec3(2.1, 0, 1.2))
+      // Above the button MESH (46): at the default text order (44) the pill
+      // paints right over its own label — clouds without words on device.
+      const label = this.addText(buttonRoot, language, 10.2, 2.6, 40, LINGO_COLORS.ink, new vec3(2.1, 0, 1.2), ORDER.buttonText)
       button.onTriggerUp.add(() => {
         this.audio.playClick()
         this.hide()
@@ -146,7 +148,9 @@ export class LingoSpaceLanguagePicker {
       const visual = visuals[i]
       const typeName = visual.getTypeName()
       if (typeName === "Component.Text") {
-        if (visual.getRenderOrder() < ORDER.text) visual.setRenderOrder(ORDER.buttonText)
+        // EVERY text ends above the button meshes (46) — a label at the panel
+        // text order (44) would be painted over by its own pill.
+        if (visual.getRenderOrder() < ORDER.buttonText) visual.setRenderOrder(ORDER.buttonText)
       } else if (visual.getRenderOrder() < ORDER.background) {
         visual.setRenderOrder(ORDER.buttonMesh)
       }
@@ -187,7 +191,7 @@ export class LingoSpaceLanguagePicker {
     root.getTransform().setLocalScale(new vec3(size.x, size.y, 1))
   }
 
-  private addText(parent: SceneObject, value: string, width: number, height: number, size: number, color: vec4, position: vec3): Text {
+  private addText(parent: SceneObject, value: string, width: number, height: number, size: number, color: vec4, position: vec3, order: number = ORDER.text): Text {
     const root = this.makeObject(parent, "Picker Text", position)
     const text = root.createComponent("Component.Text") as Text
     text.text = value
@@ -201,7 +205,7 @@ export class LingoSpaceLanguagePicker {
     text.verticalOverflow = VerticalOverflow.Shrink
     ;text.worldSpaceRect = Rect.create(-width / 2, width / 2, -height / 2, height / 2)
     text.textFill.color = color
-    text.setRenderOrder(ORDER.text)
+    text.setRenderOrder(order)
     return text
   }
 

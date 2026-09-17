@@ -15,6 +15,7 @@ import {hasDenseScript, LanguageId, ScanSituation, SituationPhrase} from "./Ling
 import {languageName, lingoCopy} from "./LingoSpaceLocalization"
 import {LINGO_COLORS, LINGO_FONT, styleLingoButton} from "./LingoSpaceTheme"
 import {LingoFX} from "./LingoSpaceFX"
+import {deferDestroy} from "./LingoSpaceDeferredDestroy"
 
 type TextRole = "Headline" | "Subheadline" | "Body" | "Caption"
 type PuzzleChip = {root: SceneObject, label: string, used: boolean}
@@ -40,7 +41,8 @@ type SpatialCardView = {
 const WHITE_PIXEL_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGP4DwQACfsD/fteaysAAAAASUVORK5CYII="
 
 // High-frequency per-interaction logs stay off on device; one-shot diagnostics keep printing.
-const SCAN_DEBUG_LOGS = false
+// True while verifying placement/dedupe on device; false for release builds.
+const SCAN_DEBUG_LOGS = true
 
 // Opaque illustrated panel background — the landscape cut of the quiz artwork,
 // so scan HUD texts stop fighting the passthrough camera for contrast.
@@ -155,7 +157,7 @@ class SpatialScanCards {
       const view = this.cards[i]
       if (view.line && !isNull(view.line)) view.line.destroy()
       if (view.dot && !isNull(view.dot)) view.dot.destroy()
-      view.root.destroy()
+      deferDestroy(this.host, view.root)
     }
     this.cards = []
     this.selectedIndex = -1
@@ -593,6 +595,19 @@ class SpatialScanCards {
         hits.push({position: hit.position, normal: hit.normal, distance: hit.position.distance(sampleRay.start)})
         if (SCAN_DEBUG_LOGS) print(`[LINGO HITS] card ${index + 1}: ${hits.length} hits at ${hits.map((entry) => entry.distance.toFixed(0)).join(",")}cm (expect ${fallbackDepth.toFixed(0)})`)
         const chosen = this.chooseAnchorHit(hits, fallbackDepth, aiKnowsDepth)
+        // Final veto: the world mesh may only REFINE the AI's depth estimate,
+        // never overrule it. A winning cluster on the sofa behind a glass (or
+        // the wall behind a TV) lands outside this window and is discarded in
+        // favor of the pure ray anchor at the AI distance — the card then sits
+        // on the line of sight THROUGH the object, so it can never drift off
+        // to a different piece of furniture.
+        const chosenDistance = chosen.position.distance(ray.start)
+        const depthWindow = aiKnowsDepth ? Math.max(55, fallbackDepth * 0.4) : Number.MAX_VALUE
+        if (Math.abs(chosenDistance - fallbackDepth) > depthWindow || chosenDistance > 750) {
+          if (SCAN_DEBUG_LOGS) print(`[LINGO ANCHOR] card ${index + 1}: mesh ${chosenDistance.toFixed(0)}cm outside AI window ${fallbackDepth.toFixed(0)}±${depthWindow.toFixed(0)} — ray anchor wins`)
+          this.anchorCard(view, index, fallbackAnchor, null, captureOrigin)
+          return
+        }
         this.anchorCard(view, index, chosen.position, chosen.normal, captureOrigin)
       })
     }
@@ -706,11 +721,16 @@ class SpatialScanCards {
   }
 
   private createLeader(view: SpatialCardView): void {
+    // NEVER fall back to the card-frame texture: when the white pixel decoded
+    // late, that fallback painted a giant violet card (paw hands included) in
+    // the middle of the room. No texture yet -> no leader; updateLeaderLines
+    // retries every frame and builds it as soon as the pixel is ready.
+    if (!this.whiteTexture) return
     const line = global.scene.createSceneObject("Leader Line")
     line.setParent(this.lineContainer)
     const lineImage = line.createComponent("Component.Image") as Image
     const lineMaterial = IMAGE_MATERIAL.clone()
-    lineMaterial.mainPass.baseTex = this.whiteTexture || CARD_FRAME_TEXTURE
+    lineMaterial.mainPass.baseTex = this.whiteTexture
     lineMaterial.mainPass.baseColor = new vec4(0.68, 0.55, 1, 0.9)
     lineMaterial.mainPass.depthTest = true
     lineMaterial.mainPass.depthWrite = false
@@ -718,23 +738,12 @@ class SpatialScanCards {
     lineImage.clearMaterials()
     lineImage.addMaterial(lineMaterial)
 
-    const dot = global.scene.createSceneObject("Leader Anchor Dot")
-    dot.setParent(this.lineContainer)
-    const dotImage = dot.createComponent("Component.Image") as Image
-    const dotMaterial = IMAGE_MATERIAL.clone()
-    dotMaterial.mainPass.baseTex = this.whiteTexture || CARD_FRAME_TEXTURE
-    dotMaterial.mainPass.baseColor = new vec4(0.61, 0.42, 1, 1)
-    dotMaterial.mainPass.depthTest = true
-    dotMaterial.mainPass.depthWrite = false
-    dotMaterial.mainPass.twoSided = true
-    dotImage.clearMaterials()
-    dotImage.addMaterial(dotMaterial)
-    dot.getTransform().setWorldScale(LEADER_DOT_SCALE)
-
+    // No anchor dot anymore: cards sit ON their objects now, so the dot only
+    // ever showed as a stray violet square floating in the room (a textured
+    // 1px quad has no round silhouette). The tether line alone marks the
+    // anchor when a card is carried away by hand.
     view.line = line
-    view.dot = dot
     view.lineMaterial = lineMaterial
-    view.dotMaterial = dotMaterial
   }
 
   /** Lights up the selected card's anchor: bright line, golden dot, gentle pop. */
@@ -791,13 +800,21 @@ class SpatialScanCards {
     const cameraPosition = this.worldCamera.getWorldPosition()
     for (let i = 0; i < this.cards.length; i++) {
       const view = this.cards[i]
+      // The leader may not exist yet (white-pixel texture decodes async):
+      // build it here the moment the texture is ready.
+      if (!view.line && view.anchor && this.whiteTexture) this.createLeader(view)
       if (!view.anchor || !view.line || isNull(view.line) || isNull(view.root) || !view.root.enabled) continue
       const selected = i === this.selectedIndex
       const cardPosition = view.root.getTransform().getWorldPosition()
       const delta = cardPosition.sub(view.anchor)
       const length = delta.length
-      if (length < 3) {
+      // Degenerate geometry guard: a corrupt/far anchor once inflated this
+      // quad into a giant violet square mid-scene. Anything non-finite or
+      // longer than a real card-to-object tether hides the whole connector.
+      const healthy = isFinite(length) && isFinite(delta.x) && isFinite(delta.y) && isFinite(delta.z) && length <= 250
+      if (!healthy || length < 3) {
         view.line.enabled = false
+        if (view.dot && !isNull(view.dot)) view.dot.enabled = healthy
         continue
       }
       view.line.enabled = true
@@ -810,12 +827,28 @@ class SpatialScanCards {
       const lineTransform = view.line.getTransform()
       lineTransform.setWorldPosition(midpoint)
       lineTransform.setWorldRotation(quat.lookAt(facing, direction))
-      lineTransform.setWorldScale(new vec3(0.45, length, 1))
+      // LOCAL scale on the identity line container: setWorldScale must invert
+      // the fresh rotation and its lossy non-uniform decomposition is exactly
+      // what blew the thin line up into a square.
+      lineTransform.setLocalScale(new vec3(0.45, length, 1))
+      // Runaway sentinel: whatever corrupts a transform (lossy world-scale
+      // decomposition, engine hiccup), a connector may never render bigger
+      // than its intended size — hide it the same frame instead.
+      const lineWorld = lineTransform.getWorldScale()
+      if (!isFinite(lineWorld.x) || Math.abs(lineWorld.x) > 5 || Math.abs(lineWorld.y) > 260) {
+        view.line.enabled = false
+        if (SCAN_DEBUG_LOGS) print(`[LINGO LEADER] runaway line scale ${lineWorld.x.toFixed(1)}x${lineWorld.y.toFixed(1)} — hidden`)
+      }
       if (view.dot && !isNull(view.dot)) {
         const dotTransform = view.dot.getTransform()
         dotTransform.setWorldPosition(view.anchor)
         dotTransform.setWorldRotation(quat.lookAt(cameraPosition.sub(view.anchor).normalize(), vec3.up()))
-        dotTransform.setWorldScale(LEADER_DOT_SCALE)
+        dotTransform.setLocalScale(LEADER_DOT_SCALE)
+        const dotWorld = dotTransform.getWorldScale()
+        if (!isFinite(dotWorld.x) || Math.abs(dotWorld.x) > 6 || Math.abs(dotWorld.y) > 6) {
+          view.dot.enabled = false
+          if (SCAN_DEBUG_LOGS) print(`[LINGO LEADER] runaway dot scale ${dotWorld.x.toFixed(1)}x${dotWorld.y.toFixed(1)} — hidden`)
+        }
       }
     }
   }

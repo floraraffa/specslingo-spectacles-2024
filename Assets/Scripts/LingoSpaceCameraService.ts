@@ -122,11 +122,42 @@ export class LingoSpaceCameraService {
     // The pose is sampled AFTER the stream is confirmed live, in the same frame the
     // texture is encoded — a cold stream start can no longer desync pose and pixels.
     return this.ensureStarted()
+      .then((texture) => this.waitForFreshFrame(texture))
       .then((texture) => {
         const deviceWorldTransform = this.worldCamera.getWorldTransform()
         return this.encode(texture)
           .then((base64Jpeg) => this.decode(base64Jpeg).then((decoded) => ({texture: decoded, base64Jpeg, deviceWorldTransform})))
       })
+  }
+
+  /** A cached stream can be STALLED (the sensitive-sensor pipeline pauses it
+   * around voice sessions): encoding it then ships pixels from another room
+   * and the AI labels the wrong ambiente. Demand a frame delivered AFTER this
+   * call; a silent stream is dropped and restarted once from scratch. */
+  private waitForFreshFrame(texture: Texture): Promise<Texture> {
+    const provider = this.provider
+    // No cached provider means ensureStarted just created the stream and its
+    // resolve fired on a brand-new frame: already fresh.
+    if (!provider) return Promise.resolve(texture)
+    return new Promise<Texture>((resolve, reject) => {
+      const watchdog = this.host.createEvent("DelayedCallbackEvent")
+      const registration = provider.onNewFrame.add(() => {
+        provider.onNewFrame.remove(registration)
+        this.host.removeEvent(watchdog)
+        resolve(texture)
+      })
+      watchdog.bind(() => {
+        provider.onNewFrame.remove(registration)
+        this.host.removeEvent(watchdog)
+        print("[LINGO CAMERA] stream stalled (no fresh frame in 2.5s); restarting stream")
+        this.startGeneration += 1
+        this.cameraTexture = null
+        this.provider = null
+        this.starting = null
+        this.ensureStarted().then(resolve).catch(reject)
+      })
+      watchdog.reset(2.5)
+    })
   }
 
   /** ASR takes ownership of the sensitive sensor pipeline on Specs.

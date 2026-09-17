@@ -13,10 +13,12 @@ import {lingoCopy} from "./LingoSpaceLocalization"
 import {LINGO_COLORS, LINGO_FONT, styleLingoButton} from "./LingoSpaceTheme"
 import {LingoSpaceAudioController} from "./LingoSpaceAudioController"
 import {LingoFX} from "./LingoSpaceFX"
+import {deferDestroy} from "./LingoSpaceDeferredDestroy"
 
 const BOOK_TEXTURE = requireAsset("../AIImagesKawaii/book.png") as Texture
 const PANEL_TEXTURE = requireAsset("../ScreenDesign/background2.png") as Texture
 const VOLUME_ICON = requireAsset("../Icons/volume_up.png") as Texture
+const MOON_ICON = requireAsset("../Icons/moon.png") as Texture
 
 const ORDER = {background: 6, image: 11, text: 14, buttonMesh: 16, buttonIcon: 17, buttonText: 18}
 const ROWS_PER_PAGE = 4
@@ -34,6 +36,8 @@ export class LingoSpaceGlossaryUI {
   private musicIconMaterial: Material | null = null
   private languageRoot!: SceneObject
   private flagMaterial: Material | null = null
+  private whisperRoot!: SceneObject
+  private whisperIconMaterial: Material | null = null
   private rowsRoot: SceneObject | null = null
   private titleText!: Text
   private pageText!: Text
@@ -64,6 +68,7 @@ export class LingoSpaceGlossaryUI {
     private fetchEntries: () => GlossaryEntry[],
     private speakEntry: (word: string) => void,
     private onLanguagePick: () => void,
+    private onWhisperToggle: () => boolean,
   ) {
     this.fx = new LingoFX(host)
     this.root = global.scene.createSceneObject("Lingo Glossary")
@@ -71,6 +76,7 @@ export class LingoSpaceGlossaryUI {
     this.panelRoot = this.buildPanel()
     this.buildMusicButton()
     this.buildLanguageChip()
+    this.buildWhisperChip()
     this.panelRoot.enabled = false
     this.root.enabled = false
     this.host.createEvent("UpdateEvent").bind(() => this.followWrist())
@@ -144,6 +150,12 @@ export class LingoSpaceGlossaryUI {
       if (this.languageRoot.enabled !== flagVisible) this.languageRoot.enabled = flagVisible
       if (flagVisible) this.languageRoot.getTransform().setWorldPosition(this.smoothedPos.add(sideways.uniformScale(6.4)))
     }
+    // Whisper moon completes the wrist row: book · music · flag · moon.
+    if (!isNull(this.whisperRoot)) {
+      const moonVisible = tracked && palmOpen
+      if (this.whisperRoot.enabled !== moonVisible) this.whisperRoot.enabled = moonVisible
+      if (moonVisible) this.whisperRoot.getTransform().setWorldPosition(this.smoothedPos.add(sideways.uniformScale(9.2)))
+    }
     // The open dictionary floats beside the book until the wearer grabs it with MOVE.
     if (this.panelOpen && this.panelFollow && !isNull(this.panelRoot)) {
       const panelTarget = this.smoothedPos.add(PANEL_OFFSET)
@@ -208,7 +220,7 @@ export class LingoSpaceGlossaryUI {
   }
 
   private renderPage(): void {
-    if (this.rowsRoot && !isNull(this.rowsRoot)) this.rowsRoot.destroy()
+    if (this.rowsRoot && !isNull(this.rowsRoot)) deferDestroy(this.host, this.rowsRoot)
     // Destroying the rows orphans their play buttons' size entries: drop them.
     this.sizedButtons = this.sizedButtons.filter((entry) => !isNull(entry.button))
     this.rowsRoot = this.makeObject(this.panelRoot, "Glossary Rows")
@@ -341,6 +353,32 @@ export class LingoSpaceGlossaryUI {
       this.onLanguagePick()
     })
     this.languageRoot.enabled = false
+  }
+
+  /** Whisper mode: a moon on the wrist — soft coach voice and hushed sounds
+   * for practicing in public. Bright moon = whisper on. */
+  private buildWhisperChip(): void {
+    this.whisperRoot = this.makeObject(this.root, "Palm Whisper Chip")
+    const billboard = this.whisperRoot.createComponent(Billboard.getTypeName()) as Billboard
+    billboard.xAxisEnabled = true
+    billboard.yAxisEnabled = true
+    billboard.zAxisEnabled = false
+    billboard.axisEasing = new vec3(0.3, 0.3, 1)
+    billboard.axisBufferDegrees = new vec3(2, 2, 0)
+    const button = this.whisperRoot.createComponent(Button.getTypeName()) as Button
+    button.setVariant({theme: "SnapOS3", shape: "Round", style: "Primary"})
+    styleLingoButton(button, "neutral")
+    this.enforceButtonSize(button, 2, 2, 1)
+    const icon = this.addImage(this.whisperRoot, MOON_ICON, 1.2, "Whisper Chip Icon", new vec3(0, 0, 1.4))
+    const iconImage = icon.getComponent("Component.Image") as Image
+    this.whisperIconMaterial = iconImage.mainMaterial
+    if (this.whisperIconMaterial) this.whisperIconMaterial.mainPass.baseColor = new vec4(1, 1, 1, 0.4)
+    button.onTriggerUp.add(() => {
+      this.audio.playClick()
+      const enabled = this.onWhisperToggle()
+      if (this.whisperIconMaterial) this.whisperIconMaterial.mainPass.baseColor = new vec4(1, 1, 1, enabled ? 1 : 0.4)
+    })
+    this.whisperRoot.enabled = false
   }
 
   /** Keeps the wrist chip's flag in sync with the studied language. */

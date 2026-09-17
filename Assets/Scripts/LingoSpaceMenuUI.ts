@@ -14,6 +14,7 @@ import {LanguageId, LearningMode, SUPPORTED_LANGUAGES} from "./LingoSpaceData"
 import {languageName, lingoCopy} from "./LingoSpaceLocalization"
 import {LINGO_COLORS, LINGO_FONT, LingoTone, styleLingoButton} from "./LingoSpaceTheme"
 import {LingoFX} from "./LingoSpaceFX"
+import {deferDestroy} from "./LingoSpaceDeferredDestroy"
 
 const PLAY_ICON: Texture = requireAsset("../Icons/play_arrow.png") as Texture
 const BACK_ICON: Texture = requireAsset("../Icons/arrow_back.png") as Texture
@@ -423,7 +424,7 @@ export class LingoSpaceMenuUI extends BaseScriptComponent {
       this.pageItem = null
     }
     if (this.pageRoot) {
-      this.pageRoot.destroy()
+      deferDestroy(this, this.pageRoot)
       this.pageRoot = null
     }
     this.languageCloudMaterial = null
