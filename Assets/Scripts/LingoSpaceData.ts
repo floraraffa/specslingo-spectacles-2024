@@ -282,6 +282,21 @@ export function getReferenceCards(targetLanguage: LanguageId, nativeLanguage: La
   }))
 }
 
+/** Backfill for REFERENCE cards persisted before the dataset carried example
+ * sentences: the phrase-ordering game must exist for OLD saves too. */
+export function referencePhrases(id: string, targetLanguage: LanguageId, nativeLanguage: LanguageId): {phrase: string, phraseTranslation: string, phrasePhonetic?: string} | null {
+  for (let i = 0; i < CONCEPTS.length; i++) {
+    if (CONCEPTS[i].id !== id) continue
+    const concept = CONCEPTS[i]
+    return {
+      phrase: concept.phrases[targetLanguage],
+      phraseTranslation: concept.phrases[nativeLanguage],
+      phrasePhonetic: concept.phrasePhonetics ? concept.phrasePhonetics[targetLanguage] : undefined,
+    }
+  }
+  return null
+}
+
 export function getReferenceBatchCount(): number {
   return Math.ceil(CONCEPTS.length / REFERENCE_BATCH_SIZE)
 }

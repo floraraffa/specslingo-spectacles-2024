@@ -19,6 +19,7 @@ const BOOK_TEXTURE = requireAsset("../AIImagesKawaii/book.png") as Texture
 const PANEL_TEXTURE = requireAsset("../ScreenDesign/background2.png") as Texture
 const VOLUME_ICON = requireAsset("../Icons/volume_up.png") as Texture
 const MOON_ICON = requireAsset("../Icons/moon.png") as Texture
+const HELP_ICON = requireAsset("../Icons/help.png") as Texture
 
 const ORDER = {background: 6, image: 11, text: 14, buttonMesh: 16, buttonIcon: 17, buttonText: 18}
 const ROWS_PER_PAGE = 4
@@ -69,6 +70,7 @@ export class LingoSpaceGlossaryUI {
     private speakEntry: (word: string) => void,
     private onLanguagePick: () => void,
     private onWhisperToggle: () => boolean,
+    private onHelp: () => void,
   ) {
     this.fx = new LingoFX(host)
     this.root = global.scene.createSceneObject("Lingo Glossary")
@@ -77,6 +79,7 @@ export class LingoSpaceGlossaryUI {
     this.buildMusicButton()
     this.buildLanguageChip()
     this.buildWhisperChip()
+    this.buildHelpChip()
     this.panelRoot.enabled = false
     this.root.enabled = false
     this.host.createEvent("UpdateEvent").bind(() => this.followWrist())
@@ -155,6 +158,12 @@ export class LingoSpaceGlossaryUI {
       const moonVisible = tracked && palmOpen
       if (this.whisperRoot.enabled !== moonVisible) this.whisperRoot.enabled = moonVisible
       if (moonVisible) this.whisperRoot.getTransform().setWorldPosition(this.smoothedPos.add(sideways.uniformScale(9.2)))
+    }
+    // The "?" tutorial chip closes the row, right beside the moon.
+    if (this.helpRoot && !isNull(this.helpRoot)) {
+      const helpVisible = tracked && palmOpen
+      if (this.helpRoot.enabled !== helpVisible) this.helpRoot.enabled = helpVisible
+      if (helpVisible) this.helpRoot.getTransform().setWorldPosition(this.smoothedPos.add(sideways.uniformScale(12)))
     }
     // The open dictionary floats beside the book until the wearer grabs it with MOVE.
     if (this.panelOpen && this.panelFollow && !isNull(this.panelRoot)) {
@@ -379,6 +388,30 @@ export class LingoSpaceGlossaryUI {
       if (this.whisperIconMaterial) this.whisperIconMaterial.mainPass.baseColor = new vec4(1, 1, 1, enabled ? 1 : 0.4)
     })
     this.whisperRoot.enabled = false
+  }
+
+  private helpRoot: SceneObject | null = null
+
+  /** Replay-the-tutorial chip: a "?" beside the moon, so the wearer (or a
+   * friend trying the Specs) can rewatch the tour whenever they want. */
+  private buildHelpChip(): void {
+    this.helpRoot = this.makeObject(this.root, "Palm Help Chip")
+    const billboard = this.helpRoot.createComponent(Billboard.getTypeName()) as Billboard
+    billboard.xAxisEnabled = true
+    billboard.yAxisEnabled = true
+    billboard.zAxisEnabled = false
+    billboard.axisEasing = new vec3(0.3, 0.3, 1)
+    billboard.axisBufferDegrees = new vec3(2, 2, 0)
+    const button = this.helpRoot.createComponent(Button.getTypeName()) as Button
+    button.setVariant({theme: "SnapOS3", shape: "Round", style: "Primary"})
+    styleLingoButton(button, "primary")
+    this.enforceButtonSize(button, 2, 2, 1)
+    this.addImage(this.helpRoot, HELP_ICON, 1.3, "Help Chip Icon", new vec3(0, 0, 1.4))
+    button.onTriggerUp.add(() => {
+      this.audio.playClick()
+      this.onHelp()
+    })
+    this.helpRoot.enabled = false
   }
 
   /** Keeps the wrist chip's flag in sync with the studied language. */

@@ -163,6 +163,57 @@ class SpatialScanCards {
     this.selectedIndex = -1
   }
 
+  /** Per-language session shelves: switching the studied language PARKS the
+   * current cards invisibly instead of destroying them, so switching back
+   * finds every card anchored exactly where it was. */
+  private stashes: Record<string, SpatialCardView[]> = {}
+
+  stash(key: string): void {
+    this.destroyStash(key)
+    if (this.cards.length === 0) return
+    for (let i = 0; i < this.cards.length; i++) {
+      const view = this.cards[i]
+      if (!isNull(view.root)) view.root.enabled = false
+      if (view.line && !isNull(view.line)) view.line.enabled = false
+      if (view.dot && !isNull(view.dot)) view.dot.enabled = false
+    }
+    this.stashes[key] = this.cards
+    this.cards = []
+    this.selectedIndex = -1
+    this.generation += 1
+  }
+
+  /** Brings a parked language's cards back on stage; returns how many. */
+  restore(key: string): number {
+    const stored = this.stashes[key]
+    if (!stored) return 0
+    delete this.stashes[key]
+    this.cards = stored
+    this.selectedIndex = -1
+    this.generation += 1
+    let alive = 0
+    for (let i = 0; i < this.cards.length; i++) {
+      const view = this.cards[i]
+      if (isNull(view.root)) continue
+      // Occlusion and leader sweeps re-evaluate visibility next frame.
+      view.root.enabled = true
+      alive += 1
+    }
+    return alive
+  }
+
+  private destroyStash(key: string): void {
+    const stored = this.stashes[key]
+    if (!stored) return
+    delete this.stashes[key]
+    for (let i = 0; i < stored.length; i++) {
+      const view = stored[i]
+      if (view.line && !isNull(view.line)) view.line.destroy()
+      if (view.dot && !isNull(view.dot)) view.dot.destroy()
+      deferDestroy(this.host, view.root)
+    }
+  }
+
   /** Adds one scan's cards. With append=true earlier scans stay anchored in the
    * rooms where they were captured, so a session can populate the whole home. */
   build(situation: ScanSituation, nativeLanguage: LanguageId, capturePose: mat4, append: boolean): void {
@@ -1339,6 +1390,10 @@ export class LingoSpaceScanUI {
   cardAnchor(index: number): vec3 | null { return this.spatialCards.cardAnchor(index) }
 
   huntableIndices(): number[] { return this.spatialCards.huntableIndices() }
+
+  stashScanCards(key: string): void { this.spatialCards.stash(key) }
+
+  restoreScanCards(key: string): number { return this.spatialCards.restore(key) }
 
   projectScanRay(screenPoint: vec2, capturePose: mat4): {start: vec3, end: vec3} {
     return this.spatialCards.projectCaptureRay(screenPoint, capturePose)

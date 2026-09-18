@@ -9,6 +9,9 @@ import {
 const STORAGE_KEY = "lingo-specs-progress-v1"
 const MAX_SESSIONS = 60
 const MAX_CARDS = 180
+// Absolute ceiling across ALL language pairs (5 studied pairs x 180 is the
+// theoretical max; normal use never reaches it).
+const MAX_CARDS_TOTAL = 900
 
 // Generated card art, persisted as small matted JPEG thumbnails so learners
 // keep their pictures across sessions. Budgeted: oldest art is evicted first.
@@ -169,7 +172,22 @@ export class LingoSpaceProgressStore {
     }
     if (index >= 0) this.state.cards.splice(index, 1)
     this.state.cards.unshift(entry)
-    if (this.state.cards.length > MAX_CARDS) this.state.cards.length = MAX_CARDS
+    // Eviction is PER LANGUAGE PAIR: filling up Italian must never silently
+    // delete the French library (it did — a global cap truncated the tail,
+    // which is always the least-recently-touched OTHER language).
+    let pairCount = 0
+    for (let i = 0; i < this.state.cards.length; i++) {
+      const candidate = this.state.cards[i]
+      if (candidate.nativeLanguage !== nativeLanguage || candidate.targetLanguage !== targetLanguage) continue
+      pairCount += 1
+      if (pairCount > MAX_CARDS) {
+        this.state.cards.splice(i, 1)
+        i -= 1
+        pairCount -= 1
+      }
+    }
+    // Storage-safety ceiling across everything: far above normal use.
+    if (this.state.cards.length > MAX_CARDS_TOTAL) this.state.cards.length = MAX_CARDS_TOTAL
 
     const session = this.currentSession()
     if (session && session.learnedCardIds.indexOf(card.id) < 0) {
@@ -279,7 +297,7 @@ export class LingoSpaceProgressStore {
         audioXp: typeof parsed.audioXp === "number" ? Math.max(0, parsed.audioXp) : 0,
         textXp: typeof parsed.textXp === "number" ? Math.max(0, parsed.textXp) : 0,
         sessions: Array.isArray(parsed.sessions) ? parsed.sessions.slice(0, MAX_SESSIONS) as PersistedSession[] : [],
-        cards: Array.isArray(parsed.cards) ? parsed.cards.slice(0, MAX_CARDS) as PersistedVocabularyCard[] : [],
+        cards: Array.isArray(parsed.cards) ? parsed.cards.slice(0, MAX_CARDS_TOTAL) as PersistedVocabularyCard[] : [],
       }
     } catch (error) {
       console.error(`LINGO SPACE could not load progress: ${error}`)

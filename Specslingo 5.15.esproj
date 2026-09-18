@@ -13,7 +13,7 @@ metaInfo:
     []
   tags:
     []
-  lensName: Specslingo 5.15
+  lensName: LingoSpecs
   lensDescriptors:
     - AI_MUTATED
   lensApplicability:
@@ -22,7 +22,7 @@ metaInfo:
   lensClientCompatibilities:
     - Spectacles
   platformBundlesEnabled: false
-  iconHash: ""
+  iconHash: 99e393645794b826e8ce8747f298f7ba
   videoPreviewHash: ""
   fromTemplateName: Spectacles
   fromTemplateUrl: Lens Studio 5.15.4.26022322

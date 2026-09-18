@@ -447,10 +447,24 @@ export class LingoSpaceAIService {
     return Math.round(Math.max(0, Math.min(1, 1 - distance / Math.max(heardCore.length, targetCore.length))) * 100)
   }
 
+  private speechGeneration = 0
+
+  /** Cuts any playing coach speech immediately (tutorial skip, step change) —
+   * and cancels utterances still DOWNLOADING, so a late TTS response can
+   * never start talking after the wearer dismissed its screen. */
+  stopSpeaking(): void {
+    this.speechGeneration += 1
+    if (this.voiceAudio.isPlaying()) {
+      this.voiceAudio.stop(false)
+      this.finishSpeech()
+    }
+  }
+
   speak(text: string, instructions: string): Promise<void> {
     // Each utterance owns the anchor set when it was requested, applied only
     // when its audio is ready to play.
     const anchor = this.pendingSpeechAnchor
+    const generation = this.speechGeneration
     const spokenInstructions = this.whisperMode
       ? `Whisper very softly and gently, close and intimate. ${instructions}`
       : instructions
@@ -460,6 +474,7 @@ export class LingoSpaceAIService {
       voice: "coral",
       instructions: spokenInstructions,
     }).then((track) => {
+      if (generation !== this.speechGeneration) return
       this.applySpeechAnchor(anchor)
       this.voiceAudio.audioTrack = track
       this.beginSpeech()

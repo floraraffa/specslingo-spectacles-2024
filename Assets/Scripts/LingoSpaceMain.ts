@@ -6,11 +6,13 @@ import {LingoSpaceQuizUI, QuizCard} from "./LingoSpaceQuizUI"
 import {GlossaryEntry, LingoSpaceGlossaryUI} from "./LingoSpaceGlossaryUI"
 import {LingoSpaceLanguagePicker} from "./LingoSpaceLanguagePicker"
 import {LingoSpaceNightMode} from "./LingoSpaceNightMode"
+import {LingoSpaceTutorial} from "./LingoSpaceTutorial"
 import {LingoFX} from "./LingoSpaceFX"
 import {
   CategoryId,
   getAllWords,
   getReferenceCards,
+  referencePhrases,
   isLanguageId,
   LanguageId,
   LearningMode,
@@ -148,7 +150,7 @@ export class LingoSpaceMain extends BaseScriptComponent {
     this.ai = new LingoSpaceAIService(this.sceneObject)
     // Background music dips while the AI voice talks, mirroring the mic ducking.
     this.ai.setSpeechHooks(() => this.audio.duckMusic(), () => this.audio.restoreMusic())
-    this.glossaryUI = new LingoSpaceGlossaryUI(this.sceneObject, this, this.audio, () => this.glossaryEntries(), (word) => this.speakGlossaryWord(word), () => this.openLanguagePicker(), () => this.toggleWhisperMode())
+    this.glossaryUI = new LingoSpaceGlossaryUI(this.sceneObject, this, this.audio, () => this.glossaryEntries(), (word) => this.speakGlossaryWord(word), () => this.openLanguagePicker(), () => this.toggleWhisperMode(), () => this.replayTutorial())
     this.languagePicker = new LingoSpaceLanguagePicker(this, this.audio, (language) => this.applyTargetLanguageChange(language))
     this.fx = new LingoFX(this)
     this.quizUI = new LingoSpaceQuizUI(this.sceneObject, this, this.audio)
@@ -303,6 +305,9 @@ export class LingoSpaceMain extends BaseScriptComponent {
     this.menuUI.setUserName(profile.userName || "Learner")
     this.menuUI.restoreSelection(this.nativeLanguage, this.targetLanguage)
     this.resolveUserName()
+    // The tour fires ONLY after the wearer picks their native language — until
+    // that tap we cannot know which language to teach in (see the
+    // onNativeLanguageSelected handler below).
     this.menuUI.onNativeLanguageSelected.add((value) => {
       if (isLanguageId(value)) {
         this.nativeLanguage = value
@@ -311,6 +316,7 @@ export class LingoSpaceMain extends BaseScriptComponent {
         this.targetLanguage = null
         this.learningMode = null
         this.progress.setLanguages(this.nativeLanguage, null)
+        this.maybeStartTutorial(value)
       }
       this.audio.playClick()
     })
@@ -457,6 +463,7 @@ export class LingoSpaceMain extends BaseScriptComponent {
       this.boardUI.startRound(this.nativeLanguage, this.targetLanguage, this.learningMode)
       this.boardUI.setXp(this.audioXp, this.textXp)
       this.prepareScanner()
+      this.restoreSessionScanIfParked()
     } else {
       this.startQuizRound(this.cards)
     }
@@ -1321,6 +1328,66 @@ export class LingoSpaceMain extends BaseScriptComponent {
 
   private whisperMode = false
   private nightMode: LingoSpaceNightMode | null = null
+  private tutorial: LingoSpaceTutorial | null = null
+
+  private tutorialShownThisSession = false
+  private tutorialHidMenu = false
+  private static readonly TUTORIAL_DISMISSED_KEY = "lingo.tutorialDismissed.v1"
+
+  private ensureTutorialBuilt(): LingoSpaceTutorial {
+    if (!this.tutorial) {
+      this.tutorial = new LingoSpaceTutorial(
+        this,
+        this.audio,
+        (text) => {
+          this.ai.stopSpeaking()
+          this.ai.speak(text, `Speak warmly, clearly and briefly in ${this.nativeLanguage}, like a friendly kawaii language tutor welcoming a new student.`).catch(() => {})
+        },
+        () => {
+          this.ai.stopSpeaking()
+          if (this.tutorialHidMenu) {
+            this.tutorialHidMenu = false
+            this.menuUI.show()
+          }
+        },
+        () => {
+          // The USER retires the tour — never us. The "?" wrist chip can
+          // always bring it back on demand.
+          try {
+            global.persistentStorageSystem.store.putBool(LingoSpaceMain.TUTORIAL_DISMISSED_KEY, true)
+          } catch (error) {}
+        },
+      )
+    }
+    return this.tutorial
+  }
+
+  /** Guided tour, spoken and written in the freshly chosen native language.
+   * Auto-shows once per session UNLESS the user tapped "don't show again";
+   * the menu hides underneath so the tour owns the stage. */
+  private maybeStartTutorial(native: LanguageId): void {
+    if (this.tutorialShownThisSession) return
+    try {
+      if (global.persistentStorageSystem.store.getBool(LingoSpaceMain.TUTORIAL_DISMISSED_KEY)) return
+    } catch (error) {}
+    this.tutorialShownThisSession = true
+    this.tutorialHidMenu = true
+    this.menuUI.hide()
+    this.ensureTutorialBuilt().show(native)
+  }
+
+  /** The "?" wrist chip: rewatch the tour any time, for yourself or to show
+   * a friend — works even after "don't show again". */
+  private replayTutorial(): void {
+    if (!this.nativeLanguage) return
+    const tutorial = this.ensureTutorialBuilt()
+    if (tutorial.isOpen()) {
+      this.ai.stopSpeaking()
+      tutorial.hide()
+      return
+    }
+    tutorial.show(this.nativeLanguage)
+  }
 
   /** Whisper mode: soft coach voice, hushed sounds AND a starry night dome —
    * the moon chip turns the room into a quiet focus cocoon. */
@@ -1339,14 +1406,48 @@ export class LingoSpaceMain extends BaseScriptComponent {
     this.languagePicker.show(this.nativeLanguage, this.targetLanguage)
   }
 
-  /** Switching target mid-session restarts the current mode in the new tongue. */
+  /** Session scan state shelved per language pair: the wearer can scan in
+   * several languages and each keeps its own anchored cards. */
+  private sessionScanStash: Record<string, {situation: ScanSituation, cards: VocabularyCard[], phrases: SituationPhrase[], room: string | null}> = {}
+
+  /** Switching target mid-session restarts the current mode in the new tongue.
+   * The outgoing language's anchored cards are PARKED, not destroyed — and the
+   * incoming language's cards (scanned earlier this session) come right back. */
   private applyTargetLanguageChange(language: LanguageId): void {
     if (!this.nativeLanguage || !isLanguageId(language)) return
     if (language === this.nativeLanguage || language === this.targetLanguage) return
+    if (this.scanSituation && this.targetLanguage) {
+      const oldKey = `${this.nativeLanguage}->${this.targetLanguage}`
+      this.boardUI.stashScanCards(oldKey)
+      this.sessionScanStash[oldKey] = {situation: this.scanSituation, cards: this.scanCards, phrases: this.scanPhrases, room: this.lastScannedRoom}
+      this.scanSituation = null
+      this.scanCards = []
+      this.scanPhrases = []
+      this.scanCardIndex = 0
+      this.scanPhraseIndex = 0
+      this.lastScannedRoom = null
+    }
     this.targetLanguage = language
     this.progress.setLanguages(this.nativeLanguage, language)
     this.practiceFromScan = false
     if (this.learningMode) this.startRound()
+  }
+
+  /** Back in a language already scanned this session (any entry path — wrist
+   * switch or menu): its cards reappear anchored exactly where they were. */
+  private restoreSessionScanIfParked(): void {
+    if (!this.nativeLanguage || !this.targetLanguage) return
+    const key = `${this.nativeLanguage}->${this.targetLanguage}`
+    const shelved = this.sessionScanStash[key]
+    if (!shelved) return
+    delete this.sessionScanStash[key]
+    const restored = this.boardUI.restoreScanCards(key)
+    if (restored === 0) return
+    this.scanSituation = shelved.situation
+    this.scanCards = shelved.cards
+    this.scanPhrases = shelved.phrases
+    this.lastScannedRoom = shelved.room
+    console.log(`LINGO SPACE language switch: restored ${restored} session cards for ${key}`)
   }
 
   /** BACK from a section: languages stay chosen, land on the mode choice. */
@@ -1406,8 +1507,11 @@ export class LingoSpaceMain extends BaseScriptComponent {
     const key = `${this.nativeLanguage}->${this.targetLanguage}`
     if (!this.scanLibraries[key]) this.scanLibraries[key] = []
     this.savedScanCards = this.scanLibraries[key]
-    if (this.hydratedScanLibraries[key]) return
     const persisted = this.progress.getCards(this.nativeLanguage, this.targetLanguage)
+    if (this.hydratedScanLibraries[key]) {
+      this.resyncLibraryToStore(persisted)
+      return
+    }
     for (let i = 0; i < persisted.length; i++) {
       const entry = persisted[i]
       if (entry.source !== "SCAN" || this.savedScanCards.some((saved) => saved.card.id === entry.id)) continue
@@ -1422,6 +1526,24 @@ export class LingoSpaceMain extends BaseScriptComponent {
     }
     this.restorePersistedArtwork()
     this.hydratedScanLibraries[key] = true
+  }
+
+  /** Self-healing store: any card alive in session memory but missing from
+   * persistence (e.g. evicted by the old global cap) is re-recorded the moment
+   * its language pair is revisited — a live session repairs its own library. */
+  private resyncLibraryToStore(persisted: PersistedVocabularyCard[]): void {
+    if (!this.nativeLanguage || !this.targetLanguage) return
+    const knownIds: Record<string, boolean> = {}
+    for (let i = 0; i < persisted.length; i++) knownIds[persisted[i].id] = true
+    for (let i = 0; i < this.savedScanCards.length; i++) {
+      const entry = this.savedScanCards[i]
+      if (knownIds[entry.card.id]) continue
+      this.progress.recordCard(entry.card, this.nativeLanguage, this.targetLanguage, {
+        promptLabel: entry.promptLabel,
+        visualDescription: entry.visualDescription,
+      })
+      console.log(`LINGO SPACE store heal: re-recorded "${entry.card.word}" (${this.nativeLanguage}->${this.targetLanguage})`)
+    }
   }
 
   /** Session-to-session pictures: decode stored thumbnails so the learner never
@@ -1543,15 +1665,28 @@ export class LingoSpaceMain extends BaseScriptComponent {
   }
 
   private asVocabularyCard(entry: PersistedVocabularyCard): VocabularyCard {
+    // Old REFERENCE saves predate example sentences: backfill them from the
+    // dataset so the phrase-ordering game ALWAYS exists for AI cards too.
+    let phrase = entry.phrase
+    let phraseTranslation = entry.phraseTranslation
+    let phrasePhonetic = entry.phrasePhonetic
+    if (!phrase && entry.source === "REFERENCE" && this.nativeLanguage && this.targetLanguage) {
+      const backfill = referencePhrases(entry.id, this.targetLanguage, this.nativeLanguage)
+      if (backfill) {
+        phrase = backfill.phrase
+        phraseTranslation = backfill.phraseTranslation
+        phrasePhonetic = backfill.phrasePhonetic
+      }
+    }
     return {
       id: entry.id,
       imageKey: entry.imageKey,
       word: entry.word,
       translation: entry.translation,
       phonetic: entry.phonetic || "",
-      phrase: entry.phrase,
-      phraseTranslation: entry.phraseTranslation,
-      phrasePhonetic: entry.phrasePhonetic,
+      phrase,
+      phraseTranslation,
+      phrasePhonetic,
       room: entry.room,
       contexts: entry.contexts.slice(),
       source: entry.source,

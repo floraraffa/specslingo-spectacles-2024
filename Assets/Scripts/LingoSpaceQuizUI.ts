@@ -230,19 +230,26 @@ export class LingoSpaceQuizUI {
     return this.cards[this.index] || null
   }
 
+  private pronunciationAttempts = 0
+
   notifyPronunciationResult(correct: boolean, message: string): void {
     if (this.phase !== "B") return
     if (!correct) {
-      this.cloudSay(message, QUIZ_RETRY_COLOR)
-      return
+      this.pronunciationAttempts += 1
+      // Two honest tries are enough: the word moves on (no audio XP) so the
+      // phrase-ordering exercise is NEVER locked behind a perfect accent.
+      if (this.pronunciationAttempts < 2) {
+        this.cloudSay(message, QUIZ_RETRY_COLOR)
+        return
+      }
     }
     if (this.advancing) return
     this.advancing = true
-    this.cloudSay(message || this.copy("quizNext"), QUIZ_CORRECT_COLOR)
-    this.audio.playSaved()
+    this.cloudSay(correct ? (message || this.copy("quizNext")) : this.copy("quizNext"), correct ? QUIZ_CORRECT_COLOR : QUIZ_RETRY_COLOR)
+    if (correct) this.audio.playSaved()
     this.afterGuarded(1, () => {
-      // Scanned cards carry a situational phrase: a well-pronounced word
-      // graduates into ordering that phrase before moving on.
+      // Every card with a situational phrase ALWAYS graduates into ordering
+      // it before moving on — scanned cards and AI cards alike.
       const entry = this.cards[this.index]
       const tokens = entry && entry.card.phrase ? entry.card.phrase.split(/\s+/).filter((token) => token.length > 0) : []
       if (tokens.length >= 3 && tokens.length <= 9) this.beginTransition(() => this.buildPhaseC(tokens))
@@ -279,6 +286,7 @@ export class LingoSpaceQuizUI {
     this.phase = "A"
     this.answerLocked = false
     this.advancing = false
+    this.pronunciationAttempts = 0
     const entry = this.cards[this.index]
     const page = this.newPage(`Quiz Recognition ${this.index + 1}`)
     this.refreshProgress()

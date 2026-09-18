@@ -410,6 +410,17 @@ export class LingoSpaceBoardUI extends BaseScriptComponent {
     this.scanUI.reanchorCard(index, bounds, capturePose, aiDistanceCm)
   }
 
+  /** Language switch: park the current pair's anchored cards… */
+  stashScanCards(key: string): void {
+    if (this.scanUI) this.scanUI.stashScanCards(key)
+  }
+
+  /** …and bring a previously parked pair back; returns restored count. */
+  restoreScanCards(key: string): number {
+    if (!this.scanUI) return 0
+    return this.scanUI.restoreScanCards(key)
+  }
+
   startScanPhrasePuzzle(index: number): boolean {
     if (!this.scanUI) return false
     return this.scanUI.startPhrasePuzzle(index)
