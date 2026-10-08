@@ -11,12 +11,13 @@ import Event, {PublicApi} from "SpectaclesInteractionKit.lspkg/Utils/Event"
 import {Interactable} from "SpectaclesInteractionKit.lspkg/Components/Interaction/Interactable/Interactable"
 import {getWordPhonetic, hasDenseScript, LanguageId, usesNonLatinScript, VocabularyCard} from "./LingoSpaceData"
 import {languageName, lingoCopy, LingoCopyKey} from "./LingoSpaceLocalization"
-import {LINGO_COLORS, LINGO_FONT, styleLingoButton} from "./LingoSpaceTheme"
+import {LINGO_COLORS, LINGO_FONT_BOLD, LINGO_FONT_SEMIBOLD, styleLingoButton} from "./LingoSpaceTheme"
 import {LingoSpaceAudioController} from "./LingoSpaceAudioController"
+import {ART, ART_FLOW, artButton, artImage, artLabel, ArtPiece, fitRow, setArt, SKIP_WIDTH, skipButton, stripArrow} from "./LingoSpaceArtKit"
 
 type TextRole = "Headline" | "Subheadline" | "Body" | "Caption"
 type QuizPhase = "A" | "B" | "C"
-type AnswerView = {root: SceneObject, button: Button, label: Text, word: string}
+type AnswerView = {root: SceneObject, button: Button, label: Text, word: string, art: SceneObject | null}
 
 const IMAGE_MATERIAL = IMAGE_MATERIAL_ASSET
 const MIC_ICON = requireAsset("../Icons/mic.png") as Texture
@@ -54,7 +55,9 @@ export class LingoSpaceQuizUI {
   private contentFlex!: FlexLayout
   private languageText!: Text
   private progressText!: Text
-  private xpText!: Text
+  private xpAudioText!: Text
+  private xpTextText!: Text
+  private xpTotalText!: Text
   private menuActionContent!: Text
   private skipActionContent!: Text
   private menuItem: FlexItem | null = null
@@ -128,7 +131,7 @@ export class LingoSpaceQuizUI {
     flex.justifyContent = FlexJustify.Center
     // Rows need head-room for wrapped lines: text can wrap beyond its rect,
     // and tight rows made neighboring rows overlap visually.
-    flex.rowGap = 0.32
+    flex.rowGap = 0.7
     flex.paddingTop = 1.4
     flex.paddingBottom = 1.6
     flex.paddingLeft = 0.8
@@ -151,7 +154,14 @@ export class LingoSpaceQuizUI {
     const languageInteractable = languageZone.createComponent(Interactable.getTypeName()) as Interactable
     languageInteractable.onTriggerEnd.add(() => this._onLanguagePickRequested.invoke())
     this.progressText = this.addText(content, "1 / 4    ○ ○ ○ ○", CONTENT_WIDTH, 1.8, "Body", LINGO_COLORS.ink)
-    this.xpText = this.addText(content, "★ AUDIO 0  •  TEXT 0  •  TOTAL XP 0", CONTENT_WIDTH, 2.4, "Body", XP_COLOR)
+    // XP on the shared starry stats pill: green AUDIO · blue TEXT · purple TOTAL.
+    const statsWidth = CONTENT_WIDTH - 2
+    const stats = this.makeObject(content, "Quiz XP Pill")
+    this.registerFlexItem(content, stats, statsWidth, statsWidth * ART.statsPill.aspect, FlexAlignSelf.Center)
+    artImage(stats, ART.statsPill, statsWidth, new vec3(0, 0, 0.4), "Quiz XP Pill Art")
+    this.xpAudioText = this.addStatLabel(stats, statsWidth, 0.22)
+    this.xpTextText = this.addStatLabel(stats, statsWidth, 0.53)
+    this.xpTotalText = this.addStatLabel(stats, statsWidth, 0.85)
     this.newPage("Quiz Page")
     this.addBottomActions(content)
     this.host.createEvent("UpdateEvent").bind(() => this.updateTween())
@@ -203,7 +213,7 @@ export class LingoSpaceQuizUI {
     transform.setLocalRotation(quat.quatIdentity())
     this.languageText.text = `${languageName(nativeLanguage, nativeLanguage)} → ${languageName(targetLanguage, nativeLanguage)}`
     this.menuActionContent.text = lingoCopy(nativeLanguage, "back")
-    this.skipActionContent.text = `${lingoCopy(nativeLanguage, "skip")} ▸`
+    this.skipActionContent.text = stripArrow(lingoCopy(nativeLanguage, "skip"))
     this.setXp(0, 0)
     this.show()
     this.buildPhaseA()
@@ -211,7 +221,7 @@ export class LingoSpaceQuizUI {
 
   /** Practice launched from a live scan replaces MENU with a BACK label. */
   setMenuLabel(label: string): void {
-    this.menuActionContent.text = label
+    this.menuActionContent.text = stripArrow(label)
   }
 
   setCardTexture(index: number, texture: Texture): void {
@@ -247,7 +257,7 @@ export class LingoSpaceQuizUI {
     this.advancing = true
     this.cloudSay(correct ? (message || this.copy("quizNext")) : this.copy("quizNext"), correct ? QUIZ_CORRECT_COLOR : QUIZ_RETRY_COLOR)
     if (correct) this.audio.playSaved()
-    this.afterGuarded(1, () => {
+    this.afterSpeech(1, () => {
       // Every card with a situational phrase ALWAYS graduates into ordering
       // it before moving on — scanned cards and AI cards alike.
       const entry = this.cards[this.index]
@@ -273,8 +283,10 @@ export class LingoSpaceQuizUI {
   }
 
   setXp(audioXp: number, textXp: number, earned: string = ""): void {
-    this.xpText.text = `★ ${lingoCopy(this.nativeLanguage, "audioXp")} ${audioXp}  •  ${lingoCopy(this.nativeLanguage, "textXp")} ${textXp}  •  ${lingoCopy(this.nativeLanguage, "totalXp")} ${audioXp + textXp}${earned ? `  ${earned}` : ""}`
-    this.xpText.textFill.color = earned ? new vec4(0.04, 0.5, 0.28, 1) : XP_COLOR
+    this.xpAudioText.text = `${lingoCopy(this.nativeLanguage, "audioXp")} ${audioXp}`
+    this.xpTextText.text = `${lingoCopy(this.nativeLanguage, "textXp")} ${textXp}`
+    this.xpTotalText.text = `${audioXp + textXp} XP${earned ? `  ${earned}` : ""}`
+    this.xpTotalText.textFill.color = earned ? new vec4(0.04, 0.5, 0.28, 1) : LINGO_COLORS.ink
   }
 
   /** The quiz keys live in the shared copy table; the union type predates them. */
@@ -291,9 +303,15 @@ export class LingoSpaceQuizUI {
     const page = this.newPage(`Quiz Recognition ${this.index + 1}`)
     this.refreshProgress()
     if (!entry) return
-    this.addText(page, this.copy("quizQuestion"), CONTENT_WIDTH, 2.8, "Subheadline", LINGO_COLORS.purple)
-    // The picture is the question: give it the biggest card the layout affords.
-    this.buildCardShell(page, 15.6, 19.5, 11.2, new vec3(0, 1.1, 0.5))
+    // The picture is the question: the biggest card the layout affords, the
+    // question in the shared speech bubble pointing at it.
+    const stage = this.makeActionRow(page, "Quiz Question Stage", 19.5)
+    this.buildCardShell(stage, 15.6, 19.5, 11.2, new vec3(0, 1.1, 0.5))
+    const bubbleWidth = 22
+    const bubble = this.makeObject(stage, "Quiz Question Bubble")
+    this.registerFlexItem(stage, bubble, bubbleWidth, bubbleWidth * ART.bubbleQuiz.aspect, FlexAlignSelf.Center)
+    artImage(bubble, ART.bubbleQuiz, bubbleWidth, new vec3(0, 0, 0.4), "Quiz Question Bubble Art")
+    artLabel(bubble, ART.bubbleQuiz, bubbleWidth, this.copy("quizQuestion"), 44, LINGO_COLORS.purple, 0.2, 5.4)
     const options = this.buildOptions(entry)
     // Symbol scripts (Japanese) are unreadable for beginners: every option
     // carries its romanized pronunciation right under the traditional writing.
@@ -317,13 +335,19 @@ export class LingoSpaceQuizUI {
     const page = this.newPage(`Quiz Pronunciation ${this.index + 1}`)
     this.refreshProgress()
     if (!entry) return
-    this.buildCardShell(page, 11.4, 14.3, 7.6, new vec3(0, 0.8, 0.5))
+    const stage = this.makeActionRow(page, "Quiz Word Stage", 14.3)
+    const speaker = artButton(stage, ART.speaker, 8, "Quiz Word Speaker")
+    this.registerFlexItem(stage, speaker.root, 8, 8 * ART.speaker.aspect, FlexAlignSelf.Center)
+    speaker.button.onTriggerUp.add(() => this._onListenRequested.invoke())
+    this.buildCardShell(stage, 11.4, 14.3, 7.6, new vec3(0, 0.8, 0.5))
+    const balance = this.makeObject(stage, "Quiz Word Stage Balance")
+    this.registerFlexItem(stage, balance, 8, 1, FlexAlignSelf.Center)
     this.boostDenseText(this.addText(page, entry.card.word, CONTENT_WIDTH, 3.2, "Headline", LINGO_COLORS.ink))
     this.addText(page, entry.phonetic ? `${this.copy("quizPhonetic")}  ${entry.phonetic}` : "", CONTENT_WIDTH, 2.2, "Caption", LINGO_COLORS.purple)
 
-    const actions = this.makeActionRow(page, "Pronunciation Actions", 4.4)
-    this.addActionButton(actions, this.copy("quizListen"), VOLUME_ICON, 18.5, "primary", () => this._onListenRequested.invoke())
-    const talk = this.addActionButton(actions, lingoCopy(this.nativeLanguage, "holdToTalk"), MIC_ICON, 22.5, "home")
+    const actions = this.makeActionRow(page, "Pronunciation Actions", 5)
+    this.addArtAction(actions, ART.listen, 19.5, this.copy("quizListen"), () => this._onListenRequested.invoke())
+    const talk = this.addArtAction(actions, ART.speak, 21, lingoCopy(this.nativeLanguage, "holdToTalk"))
     talk.onTriggerDown.add(() => {
       if (this.advancing || this.tweenPhase !== "idle") return
       this.talkHeld = true
@@ -389,7 +413,7 @@ export class LingoSpaceQuizUI {
     button.onInitialized.add(() => button.size = new vec3(width, 4.2, 1))
     const label = this.boostDenseText(this.addOverlayText(root, word, width - 1.4, 3, "Body", LINGO_COLORS.ink, new vec3(0, 0, 1.35)))
     this.registerFlexItem(parent, root, width, 4.2, FlexAlignSelf.Center)
-    const view: AnswerView = {root, button, label, word}
+    const view: AnswerView = {root, button, label, word, art: null}
     button.onTriggerUp.add(() => this.resolvePhraseChip(view))
   }
 
@@ -417,7 +441,7 @@ export class LingoSpaceQuizUI {
     this.cloudSay(this.copy("phraseSolved"), QUIZ_CORRECT_COLOR)
     this.audio.playSaved()
     this._onPhraseSolved.invoke(this.index)
-    this.afterGuarded(1.2, () => this.advanceWord())
+    this.afterSpeech(1.2, () => this.advanceWord())
   }
 
   /** CJK glyph shapes need a larger point size than Latin in the same box;
@@ -478,20 +502,18 @@ export class LingoSpaceQuizUI {
     const correct = !!entry && view.word === entry.card.word
     this._onAnswerResult.invoke(correct)
     if (correct) {
-      styleLingoButton(view.button, "success")
-      view.label.textFill.color = LINGO_COLORS.white
+      this.paintAnswer(view, "right")
       this.cloudSay(this.copy("quizCorrect"), QUIZ_CORRECT_COLOR)
       this.audio.playSaved()
-      this.afterGuarded(0.9, () => this.beginTransition(() => this.buildPhaseB()))
+      this.afterSpeech(0.9, () => this.beginTransition(() => this.buildPhaseB()))
       return
     }
-    styleLingoButton(view.button, "food")
-    view.label.textFill.color = LINGO_COLORS.white
+    this.paintAnswer(view, "wrong")
     this.cloudSay(this.copy("quizWrong"), QUIZ_RETRY_COLOR)
     this.audio.playSoftReturn()
     if (this.correctAnswerView) this.blinkCorrectAnswer(this.correctAnswerView, 0)
     // They still practice the word: phase B teaches what they just missed.
-    this.afterGuarded(1.6, () => this.beginTransition(() => this.buildPhaseB()))
+    this.afterSpeech(1.6, () => this.beginTransition(() => this.buildPhaseB()))
   }
 
   private blinkCorrectAnswer(view: AnswerView, step: number): void {
@@ -499,8 +521,7 @@ export class LingoSpaceQuizUI {
     delayed.bind(() => {
       if (!view.root || isNull(view.root)) return
       const highlight = step % 2 === 0
-      styleLingoButton(view.button, highlight ? "success" : "card")
-      view.label.textFill.color = highlight ? LINGO_COLORS.white : LINGO_COLORS.ink
+      this.paintAnswer(view, highlight ? "right" : "rest")
       view.root.getTransform().setLocalScale(highlight ? new vec3(1.1, 1.1, 1) : vec3.one())
       if (step < 5) this.blinkCorrectAnswer(view, step + 1)
     })
@@ -579,7 +600,7 @@ export class LingoSpaceQuizUI {
     pageFlex.direction = FlexDirection.Column
     pageFlex.alignItems = FlexAlign.Stretch
     pageFlex.justifyContent = FlexJustify.Start
-    pageFlex.rowGap = 0.4
+    pageFlex.rowGap = 0.8
     const item = page.createComponent(FlexItem.getTypeName()) as FlexItem
     item.overrideWidth = CONTENT_WIDTH
     item.flexShrink = 0
@@ -606,6 +627,8 @@ export class LingoSpaceQuizUI {
     // The kawaii frame floats directly on the illustrated background: a plate
     // behind it showed as a dark translucent ring around the card on device.
     this.addTextureImage(shell, CARD_FRAME_TEXTURE, width, height, "Illustrated Card Frame", new vec3(0, 0, 0.45))
+    // Washi tape from the shared kit holds the picture up.
+    artImage(shell, ART.tape, width * 0.36, new vec3(0, height / 2 - 0.4, 1.3), "Card Tape")
     const entry = this.cards[this.index]
     const imageRoot = this.makeObject(shell, "Quiz Card Artwork", imageOffset)
     const image = imageRoot.createComponent("Component.Image") as Image
@@ -642,22 +665,52 @@ export class LingoSpaceQuizUI {
     })
   }
 
+  /** Answer pill from the shared kit: lilac at rest, gold under the finger. */
   private addAnswerButton(parent: SceneObject, word: string, width: number, phonetic: string = ""): AnswerView {
-    const root = this.makeObject(parent, `Answer ${word}`)
-    const button = root.createComponent(Button.getTypeName()) as Button
-    button.setVariant({theme: "SnapOS3", shape: "Capsule", style: "Secondary"})
-    styleLingoButton(button, "card")
-    this.marshmallow(button, 2.2)
-    button.size = new vec3(width, 4.4, 1)
-    button.onInitialized.add(() => button.size = new vec3(width, 4.4, 1))
+    const made = artButton(parent, ART.answer, width, `Answer ${word}`)
+    this.registerFlexItem(parent, made.root, width, made.height * ART_FLOW, FlexAlignSelf.Center)
+    fitRow(parent, made.height * ART_FLOW)
     // With a phonetic the symbols move up and the romanization slots beneath.
     const labelPosition = phonetic ? new vec3(0, 0.75, 1.35) : new vec3(0, 0, 1.35)
-    const label = this.boostDenseText(this.addOverlayText(root, word, width - 1.6, phonetic ? 2.3 : 3.2, "Body", LINGO_COLORS.ink, labelPosition))
-    if (phonetic) this.addOverlayText(root, phonetic, width - 1.6, 1.6, "Caption", LINGO_COLORS.purple, new vec3(0, -1.15, 1.35))
-    this.registerFlexItem(parent, root, width, 4.4, FlexAlignSelf.Center)
-    const view: AnswerView = {root, button, label, word}
-    button.onTriggerUp.add(() => this.resolveAnswer(view))
+    const label = this.boostDenseText(this.addOverlayText(made.root, word, width - 2.4, phonetic ? 2.3 : 3.2, "Body", LINGO_COLORS.ink, labelPosition))
+    if (phonetic) this.addOverlayText(made.root, phonetic, width - 2.4, 1.6, "Caption", LINGO_COLORS.purple, new vec3(0, -1.15, 1.35))
+    const view: AnswerView = {root: made.root, button: made.button, label, word, art: made.art}
+    made.button.onHoverEnter.add(() => {
+      if (!this.answerLocked) setArt(made.art, ART.answerGold)
+    })
+    made.button.onHoverExit.add(() => {
+      if (!this.answerLocked) setArt(made.art, ART.answer)
+    })
+    made.button.onTriggerUp.add(() => this.resolveAnswer(view))
     return view
+  }
+
+  /** Shows an answer as right (gold + green word), wrong (rosy) or back at rest. */
+  private paintAnswer(view: AnswerView, state: "right" | "wrong" | "rest"): void {
+    if (!view.art || isNull(view.art)) return
+    if (state === "right") setArt(view.art, ART.answerGold)
+    else if (state === "wrong") setArt(view.art, ART.answer, new vec4(1, 0.72, 0.76, 1))
+    else setArt(view.art, ART.answer)
+    view.label.textFill.color = state === "right" ? QUIZ_CORRECT_COLOR : state === "wrong" ? QUIZ_RETRY_COLOR : LINGO_COLORS.ink
+  }
+
+  /** Kit art button with its label, registered in a quiz row. */
+  private addArtAction(parent: SceneObject, art: ArtPiece, width: number, label: string, onClick?: () => void): Button {
+    const made = artButton(parent, art, width, label)
+    this.registerFlexItem(parent, made.root, width, made.height * ART_FLOW, FlexAlignSelf.Center)
+    fitRow(parent, made.height * ART_FLOW)
+    artLabel(made.root, art, width, stripArrow(label), 42)
+    if (onClick) made.button.onTriggerUp.add(() => {
+      this.audio.playClick()
+      onClick()
+    })
+    return made.button
+  }
+
+  private addStatLabel(parent: SceneObject, width: number, center: number): Text {
+    const text = this.addOverlayText(parent, "", width * 0.2, width * ART.statsPill.aspect * 0.6, "Caption", LINGO_COLORS.ink, new vec3((center - 0.5) * width, 0, 1.2))
+    text.horizontalOverflow = HorizontalOverflow.Shrink
+    return text
   }
 
   /** Bottom action row: SKIP jumps to the next word, MENU exits the quiz. */
@@ -666,34 +719,26 @@ export class LingoSpaceQuizUI {
     const flex = row.createComponent(FlexLayout.getTypeName()) as FlexLayout
     flex.autoDiscoverItemsOnStart = false
     flex.width = CONTENT_WIDTH
-    flex.height = 4.4
+    flex.height = 4.6
     flex.direction = FlexDirection.Row
     flex.alignItems = FlexAlign.Center
     flex.justifyContent = FlexJustify.Center
-    flex.columnGap = 0.8
-    this.menuItem = this.registerFlexItem(parent, row, CONTENT_WIDTH, 4.4, FlexAlignSelf.Center)
+    flex.columnGap = 1.2
+    this.menuItem = this.registerFlexItem(parent, row, CONTENT_WIDTH, 4.6, FlexAlignSelf.Center)
 
-    const skipRoot = this.makeObject(row, "Quiz Skip Action")
-    const skipButton = skipRoot.createComponent(Button.getTypeName()) as Button
-    skipButton.setVariant({theme: "SnapOS3", shape: "Capsule", style: "Primary"})
-    styleLingoButton(skipButton, "primary")
-    this.marshmallow(skipButton, 2.05)
-    skipButton.size = new vec3(13.4, 4.1, 1)
-    skipButton.onInitialized.add(() => skipButton.size = new vec3(13.4, 4.1, 1))
-    this.skipActionContent = this.addOverlayText(skipRoot, "SKIP ▸", 12, 2.7, "Caption", LINGO_COLORS.white, new vec3(0, 0, 1.35))
-    this.registerFlexItem(row, skipRoot, 13.4, 4.1, FlexAlignSelf.Center)
-    skipButton.onTriggerUp.add(() => this.skipWord())
+    const shared = skipButton(row, "SKIP")
+    const skip = shared.made
+    this.registerFlexItem(row, skip.root, SKIP_WIDTH, skip.height * ART_FLOW, FlexAlignSelf.Center)
+    fitRow(row, skip.height * ART_FLOW)
+    if (this.menuItem) this.menuItem.overrideHeight = skip.height * ART_FLOW
+    this.skipActionContent = shared.label
+    skip.button.onTriggerUp.add(() => this.skipWord())
 
-    const menuRoot = this.makeObject(row, "Quiz Menu Action")
-    const menuButton = menuRoot.createComponent(Button.getTypeName()) as Button
-    menuButton.setVariant({theme: "SnapOS3", shape: "Capsule", style: "Primary"})
-    styleLingoButton(menuButton, "neutral")
-    this.marshmallow(menuButton, 2.05)
-    menuButton.size = new vec3(13.4, 4.1, 1)
-    menuButton.onInitialized.add(() => menuButton.size = new vec3(13.4, 4.1, 1))
-    this.menuActionContent = this.addOverlayText(menuRoot, "MENU", 12, 2.7, "Caption", LINGO_COLORS.white, new vec3(0, 0, 1.35))
-    this.registerFlexItem(row, menuRoot, 13.4, 4.1, FlexAlignSelf.Center)
-    menuButton.onTriggerUp.add(() => {
+    const backWidth = 22
+    const menu = artButton(row, ART.back, backWidth, "Quiz Menu Action")
+    this.registerFlexItem(row, menu.root, backWidth, menu.height * ART_FLOW, FlexAlignSelf.Center)
+    this.menuActionContent = artLabel(menu.root, ART.back, backWidth, "MENU", 40)
+    menu.button.onTriggerUp.add(() => {
       if (this.tweenPhase !== "idle" || this.advancing) return
       this.advancing = true
       this._onReturnToMenu.invoke()
@@ -715,12 +760,17 @@ export class LingoSpaceQuizUI {
     // out of phase B so a late transcript cannot advance the next word.
     this.generation += 1
     this.phase = "A"
-    if (this.index + 1 >= this.cards.length) {
-      this._onRoundCompleted.invoke()
-      return
-    }
-    this.index += 1
-    this.beginTransition(() => this.buildPhaseA())
+    // The word changes only once the AI has finished its sentence.
+    this.advancing = true
+    this.afterSpeech(0, () => {
+      this.advancing = false
+      if (this.index + 1 >= this.cards.length) {
+        this._onRoundCompleted.invoke()
+        return
+      }
+      this.index += 1
+      this.beginTransition(() => this.buildPhaseA())
+    })
   }
 
   private makeActionRow(parent: SceneObject, name: string, height: number): SceneObject {
@@ -779,7 +829,8 @@ export class LingoSpaceQuizUI {
     const root = position.equal(vec3.zero()) ? parent : this.makeObject(parent, `Overlay ${value}`, position)
     const text = root.createComponent("Component.Text") as Text
     text.text = value
-    text.font = LINGO_FONT
+    // Same rounded faces as Live Talk: Bold for titles, SemiBold for the rest.
+    text.font = role === "Headline" || role === "Subheadline" ? LINGO_FONT_BOLD : LINGO_FONT_SEMIBOLD
     text.depthTest = false
     text.size = TYPE_SCALE[role].size
     ;(text as Text & {weight?: number}).weight = TYPE_SCALE[role].weight
@@ -839,6 +890,29 @@ export class LingoSpaceQuizUI {
     for (let i = 0; i < object.getChildrenCount(); i++) {
       this.applyRenderOrders(object.getChild(i), isButton)
     }
+  }
+
+  /** Lets the quiz wait for the AI voice before changing words (set by Main). */
+  private waitForSilence: (done: () => void) => void = (done) => done()
+
+  setSpeechGate(gate: (done: () => void) => void): void {
+    this.waitForSilence = gate
+  }
+
+  /** After `seconds`, and only once the voice has finished, run `action` — never cutting a sentence. */
+  private afterSpeech(seconds: number, action: () => void): void {
+    this.afterGuarded(seconds, () => {
+      const generation = this.generation
+      let ran = false
+      const run = (): void => {
+        if (ran || generation !== this.generation || !this.root || !this.root.enabled) return
+        ran = true
+        action()
+      }
+      this.waitForSilence(run)
+      // Safety net: a voice that never reports its end can't freeze the quiz.
+      this.afterGuarded(20, run)
+    })
   }
 
   private afterGuarded(seconds: number, action: () => void): void {

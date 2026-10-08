@@ -8,6 +8,9 @@ import {RoundedRectangleVisual} from "SpectaclesUIKit.lspkg/Scripts/Visuals/Roun
 import {GradientParameters} from "SpectaclesUIKit.lspkg/Scripts/Visuals/RoundedRectangle/RoundedRectangle"
 
 export const LINGO_FONT: Font = requireAsset("../Fonts/Fredoka.ttf") as Font
+/** Heavier cuts of the same rounded face, for titles and labels (the redesigned screens). */
+export const LINGO_FONT_BOLD: Font = requireAsset("../Fonts/Fredoka-Bold.ttf") as Font
+export const LINGO_FONT_SEMIBOLD: Font = requireAsset("../Fonts/Fredoka-SemiBold.ttf") as Font
 
 export const LINGO_COLORS = {
   white: new vec4(1, 1, 1, 1),
@@ -35,6 +38,7 @@ export type LingoTone =
   | "success"
   | "warning"
   | "card"
+  | "game"
 
 type Tone = {
   base: vec4
@@ -55,6 +59,27 @@ const PRIMARY_GRADIENT: GradientParameters = {
   stop2: {enabled: true, percent: 1, color: new vec4(0.08, 0.58, 0.68, 1)},
 }
 
+/** Games read as games: warm gold → orange → pink, unlike every learning button. */
+const GAME_GRADIENT: GradientParameters = {
+  enabled: true,
+  type: "Linear",
+  start: new vec2(-1, 1),
+  end: new vec2(1, -1),
+  stop0: {enabled: true, percent: 0, color: new vec4(1, 0.78, 0.18, 1)},
+  stop1: {enabled: true, percent: 0.5, color: new vec4(1, 0.52, 0.2, 1)},
+  stop2: {enabled: true, percent: 1, color: new vec4(0.96, 0.33, 0.55, 1)},
+}
+
+const GAME_HOVER_GRADIENT: GradientParameters = {
+  enabled: true,
+  type: "Linear",
+  start: new vec2(-1, 1),
+  end: new vec2(1, -1),
+  stop0: {enabled: true, percent: 0, color: new vec4(1, 0.86, 0.35, 1)},
+  stop1: {enabled: true, percent: 0.5, color: new vec4(1, 0.64, 0.32, 1)},
+  stop2: {enabled: true, percent: 1, color: new vec4(1, 0.45, 0.66, 1)},
+}
+
 const PRIMARY_HOVER_GRADIENT: GradientParameters = {
   enabled: true,
   type: "Linear",
@@ -73,6 +98,14 @@ const TONES: Record<LingoTone, Tone> = {
     border: new vec4(0.92, 0.84, 1, 0.95),
     gradient: PRIMARY_GRADIENT,
     hoverGradient: PRIMARY_HOVER_GRADIENT,
+  },
+  game: {
+    base: new vec4(1, 0.6, 0.2, 0.98),
+    hover: new vec4(1, 0.74, 0.32, 1),
+    pressed: new vec4(0.86, 0.42, 0.12, 1),
+    border: new vec4(1, 0.95, 0.7, 1),
+    gradient: GAME_GRADIENT,
+    hoverGradient: GAME_HOVER_GRADIENT,
   },
   neutral: {
     base: new vec4(0.22, 0.14, 0.43, 0.96),

@@ -1,7 +1,9 @@
 /** Device-persistent profile, session history, XP, and learned vocabulary. */
 import {
   isLanguageId,
+  isSpeakingLevel,
   LanguageId,
+  SpeakingLevel,
   LearningMode,
   VocabularyCard,
 } from "./LingoSpaceData"
@@ -62,6 +64,8 @@ type PersistedState = {
   textXp: number
   sessions: PersistedSession[]
   cards: PersistedVocabularyCard[]
+  /** Placement-test result per studied language (absent = not assessed yet). */
+  levels: Partial<Record<LanguageId, SpeakingLevel>>
 }
 
 type CardMetadata = {
@@ -121,6 +125,15 @@ export class LingoSpaceProgressStore {
     if (this.state.sessions.length > MAX_SESSIONS) this.state.sessions.length = MAX_SESSIONS
     this.state.nativeLanguage = nativeLanguage
     this.state.targetLanguage = targetLanguage
+    this.save()
+  }
+
+  getLevel(targetLanguage: LanguageId): SpeakingLevel | null {
+    return this.state.levels[targetLanguage] || null
+  }
+
+  setLevel(targetLanguage: LanguageId, level: SpeakingLevel): void {
+    this.state.levels[targetLanguage] = level
     this.save()
   }
 
@@ -298,11 +311,22 @@ export class LingoSpaceProgressStore {
         textXp: typeof parsed.textXp === "number" ? Math.max(0, parsed.textXp) : 0,
         sessions: Array.isArray(parsed.sessions) ? parsed.sessions.slice(0, MAX_SESSIONS) as PersistedSession[] : [],
         cards: Array.isArray(parsed.cards) ? parsed.cards.slice(0, MAX_CARDS_TOTAL) as PersistedVocabularyCard[] : [],
+        levels: this.loadLevels(parsed.levels),
       }
     } catch (error) {
       console.error(`LINGO SPACE could not load progress: ${error}`)
       return fallback
     }
+  }
+
+  private loadLevels(raw: unknown): Partial<Record<LanguageId, SpeakingLevel>> {
+    const levels: Partial<Record<LanguageId, SpeakingLevel>> = {}
+    if (!raw || typeof raw !== "object") return levels
+    const entries = raw as Record<string, unknown>
+    for (const key in entries) {
+      if (isLanguageId(key) && isSpeakingLevel(entries[key])) levels[key] = entries[key] as SpeakingLevel
+    }
+    return levels
   }
 
   private save(): void {
@@ -323,6 +347,7 @@ export class LingoSpaceProgressStore {
       textXp: 0,
       sessions: [],
       cards: [],
+      levels: {},
     }
   }
 

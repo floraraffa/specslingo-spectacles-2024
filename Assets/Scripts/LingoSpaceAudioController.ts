@@ -50,6 +50,14 @@ export class LingoSpaceAudioController {
 
   private musicEnabled = true
   private quietMode = false
+  /** Live Talk: music fully off so voices (and the mic) have the room to themselves. */
+  private musicSuppressed = false
+
+  setMusicSuppressed(on: boolean): void {
+    if (this.musicSuppressed === on) return
+    this.musicSuppressed = on
+    this.applyMusicVolume()
+  }
 
   isMusicEnabled(): boolean {
     return this.musicEnabled
@@ -83,7 +91,7 @@ export class LingoSpaceAudioController {
 
   private applyMusicVolume(): void {
     if (!this.music) return
-    if (!this.musicEnabled) {
+    if (!this.musicEnabled || this.musicSuppressed) {
       this.music.volume = 0
       return
     }

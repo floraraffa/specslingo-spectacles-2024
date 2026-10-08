@@ -60,9 +60,56 @@ export class LingoSpaceAIService {
   }
 
   private finishSpeech(): void {
-    if (!this.speechActive) return
+    this.flushSpeechWaiters()
+    if (!this.speechActive) {
+      this.flushSilenceWaiters()
+      return
+    }
     this.speechActive = false
     if (this.speechEnd) this.speechEnd()
+    this.flushSilenceWaiters()
+  }
+
+  /** Callbacks waiting for the current utterance to end (speakAndWait). */
+  private speechWaiters: (() => void)[] = []
+
+  /** Utterances requested but still downloading (they will talk soon). */
+  private pendingSpeeches = 0
+  private silenceWaiters: (() => void)[] = []
+
+  /** True while the voice plays or an utterance is still on its way. */
+  isSpeaking(): boolean {
+    return this.speechActive || this.pendingSpeeches > 0
+  }
+
+  /** Runs `action` once the voice is silent — now if nothing is playing or pending. */
+  whenSilent(action: () => void): void {
+    if (!this.isSpeaking()) {
+      action()
+      return
+    }
+    this.silenceWaiters.push(action)
+  }
+
+  private flushSilenceWaiters(): void {
+    if (this.isSpeaking()) return
+    const waiters = this.silenceWaiters
+    this.silenceWaiters = []
+    for (let i = 0; i < waiters.length; i++) waiters[i]()
+  }
+
+  private flushSpeechWaiters(): void {
+    const waiters = this.speechWaiters
+    this.speechWaiters = []
+    for (let i = 0; i < waiters.length; i++) waiters[i]()
+  }
+
+  /** Like speak(), but resolves only once the voice has finished playing —
+   * or was cut, superseded, or failed — so a screen can wait for it. */
+  speakAndWait(text: string, instructions: string): Promise<void> {
+    return new Promise<void>((resolve) => {
+      this.speak(text, instructions, resolve).catch(() => resolve())
+    })
   }
 
   initialize(): void {
@@ -458,9 +505,14 @@ export class LingoSpaceAIService {
       this.voiceAudio.stop(false)
       this.finishSpeech()
     }
+    this.flushSpeechWaiters()
+    // Cut on purpose: whoever waited for silence may go on now.
+    const waiters = this.silenceWaiters
+    this.silenceWaiters = []
+    for (let i = 0; i < waiters.length; i++) waiters[i]()
   }
 
-  speak(text: string, instructions: string): Promise<void> {
+  speak(text: string, instructions: string, onDone?: () => void): Promise<void> {
     // Each utterance owns the anchor set when it was requested, applied only
     // when its audio is ready to play.
     const anchor = this.pendingSpeechAnchor
@@ -468,17 +520,36 @@ export class LingoSpaceAIService {
     const spokenInstructions = this.whisperMode
       ? `Whisper very softly and gently, close and intimate. ${instructions}`
       : instructions
+    this.pendingSpeeches += 1
+    let settled = false
+    const settle = (): void => {
+      if (settled) return
+      settled = true
+      this.pendingSpeeches = Math.max(0, this.pendingSpeeches - 1)
+    }
     return OpenAI.speech({
       model: "gpt-4o-mini-tts",
       input: text,
       voice: "coral",
       instructions: spokenInstructions,
     }).then((track) => {
-      if (generation !== this.speechGeneration) return
+      settle()
+      if (generation !== this.speechGeneration) {
+        if (onDone) onDone()
+        this.flushSilenceWaiters()
+        return
+      }
       this.applySpeechAnchor(anchor)
+      // A new utterance replaces the previous one: whoever waited on it may go on.
+      this.flushSpeechWaiters()
       this.voiceAudio.audioTrack = track
       this.beginSpeech()
+      if (onDone) this.speechWaiters.push(onDone)
       this.voiceAudio.play(1)
+    }, (error) => {
+      settle()
+      this.flushSilenceWaiters()
+      throw error
     })
   }
 

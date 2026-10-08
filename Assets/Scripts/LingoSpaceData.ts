@@ -4,6 +4,13 @@ export type CategoryId = "HOME" | "FOOD" | "WORK" | "TRAVEL" | "PEOPLE" | "OUTSI
 export const SUPPORTED_LANGUAGES = ["Spanish", "English", "German", "French", "Italian", "Japanese"] as const
 export type LanguageId = (typeof SUPPORTED_LANGUAGES)[number]
 export type LearningMode = "IMAGE" | "SCAN"
+/** Speaking level per studied language (CEFR scale, A0 = total beginner). */
+export type SpeakingLevel = "A0" | "A1" | "A2" | "B1" | "B2"
+export const SPEAKING_LEVELS: SpeakingLevel[] = ["A0", "A1", "A2", "B1", "B2"]
+
+export function isSpeakingLevel(value: unknown): value is SpeakingLevel {
+  return typeof value === "string" && SPEAKING_LEVELS.indexOf(value as SpeakingLevel) >= 0
+}
 export type CardSource = "REFERENCE" | "SCAN"
 
 export type VocabularyCard = {

@@ -6,7 +6,11 @@ import {LingoSpaceQuizUI, QuizCard} from "./LingoSpaceQuizUI"
 import {GlossaryEntry, LingoSpaceGlossaryUI} from "./LingoSpaceGlossaryUI"
 import {LingoSpaceLanguagePicker} from "./LingoSpaceLanguagePicker"
 import {LingoSpaceNightMode} from "./LingoSpaceNightMode"
+import {LingoSpaceBrightness} from "./LingoSpaceBrightness"
 import {LingoSpaceTutorial} from "./LingoSpaceTutorial"
+import {LingoSpaceTalkUI} from "./LingoSpaceTalkUI"
+import {LingoSpaceTalkService, PlacementAnswer, TalkLine, TalkScene} from "./LingoSpaceTalkService"
+import {CATCHER_STAR_GOALS, catcherStars, CatcherResult, CatcherWord, LingoSpaceCloudCatcher} from "./LingoSpaceCloudCatcher"
 import {LingoFX} from "./LingoSpaceFX"
 import {
   CategoryId,
@@ -16,6 +20,7 @@ import {
   isLanguageId,
   LanguageId,
   LearningMode,
+  SpeakingLevel,
   ScanSituation,
   SituationPhrase,
   VocabularyCard,
@@ -29,9 +34,12 @@ import {Headlock} from "SpectaclesInteractionKit.lspkg/Components/Interaction/He
 import {Billboard} from "SpectaclesInteractionKit.lspkg/Components/Interaction/Billboard/Billboard"
 import {InteractableManipulation} from "SpectaclesInteractionKit.lspkg/Components/Interaction/InteractableManipulation/InteractableManipulation"
 import {Button515 as Button} from "./compat515/Button515"
-import {ElementContent515 as ElementContent} from "./compat515/ElementContent515"
-import {RoundedRectangleVisual} from "SpectaclesUIKit.lspkg/Scripts/Visuals/RoundedRectangle/RoundedRectangleVisual"
-import {styleLingoButton} from "./LingoSpaceTheme"
+import {artImage, artPiece, ArtPiece, clearButtonVisual} from "./LingoSpaceArtKit"
+import {LINGO_COLORS, LINGO_FONT_BOLD} from "./LingoSpaceTheme"
+
+/** MOVER / SEGUIR artwork (icons baked in); both PNGs are ~3.15:1 with a soft glow. */
+const MOVE_HANDLE_ART = artPiece(requireAsset("../ScreenDesign/talk/move-btn.png") as Texture, 328, 103)
+const FOLLOW_HANDLE_ART = artPiece(requireAsset("../ScreenDesign/talk/follow-btn.png") as Texture, 311, 102)
 
 type PronunciationCopy = {
   correct: string
@@ -110,6 +118,17 @@ export class LingoSpaceMain extends BaseScriptComponent {
   private languagePicker!: LingoSpaceLanguagePicker
   private fx!: LingoFX
   private quizActive = false
+  private talkUI!: LingoSpaceTalkUI
+  private talk = new LingoSpaceTalkService()
+  /** Live Talk owns the mic while open: the hold-to-talk path routes to it. */
+  private talkActive = false
+  /** What the current Live Talk mic hold is for: TURN (AI chat), PLACE (custom scene) or SAY (speaking drill). */
+  private talkMicPurpose = "TURN"
+  /** Placement test in progress: the learner's own estimate and the answers so far. */
+  private placementSelfReport: SpeakingLevel = "A1"
+  private placementAnswers: PlacementAnswer[] = []
+  private placementQuestion = ""
+  private catcher!: LingoSpaceCloudCatcher
   private camera!: LingoSpaceCameraService
   private nextEvent: any
   private unlockDropEvent: any
@@ -138,8 +157,8 @@ export class LingoSpaceMain extends BaseScriptComponent {
   private spatialBillboard: Billboard | null = null
   private spatialManipulation: InteractableManipulation | null = null
   private spatialRecenterButton: Button | null = null
-  private spatialMoveContent: ElementContent | null = null
-  private spatialRecenterContent: ElementContent | null = null
+  private spatialMoveContent: Text | null = null
+  private spatialRecenterContent: Text | null = null
 
   onAwake(): void {
     this.configureSpatialHeadFollow()
@@ -154,6 +173,9 @@ export class LingoSpaceMain extends BaseScriptComponent {
     this.languagePicker = new LingoSpaceLanguagePicker(this, this.audio, (language) => this.applyTargetLanguageChange(language))
     this.fx = new LingoFX(this)
     this.quizUI = new LingoSpaceQuizUI(this.sceneObject, this, this.audio)
+    this.quizUI.setSpeechGate((done) => this.ai.whenSilent(done))
+    this.talkUI = new LingoSpaceTalkUI(this.sceneObject, this, this.audio)
+    this.catcher = new LingoSpaceCloudCatcher(this, this.audio, (heard, target) => this.ai.similarityScore(heard, target))
     this.nextEvent = this.createEvent("DelayedCallbackEvent")
     this.nextEvent.bind(() => this.advanceAfterSave())
     this.unlockDropEvent = this.createEvent("DelayedCallbackEvent")
@@ -217,20 +239,8 @@ export class LingoSpaceMain extends BaseScriptComponent {
   private buildSpatialGrabControls(): void {
     const moveRoot = global.scene.createSceneObject("Move Spatial Panel")
     moveRoot.setParent(this.sceneObject)
-    moveRoot.getTransform().setLocalPosition(new vec3(-4.8, 33.1, 5))
-    const moveButton = moveRoot.createComponent(Button.getTypeName()) as Button
-    moveButton.setVariant({theme: "SnapOS3", shape: "Capsule", style: "Primary"})
-    styleLingoButton(moveButton, "primary")
-    moveButton.size = new vec3(11.5, 4, 1)
-    moveButton.onInitialized.add(() => {
-      moveButton.size = new vec3(11.5, 4, 1)
-      this.marshmallow(moveButton)
-    })
-    const moveContent = moveRoot.createComponent(ElementContent.getTypeName()) as ElementContent
-    moveContent.text = `✦  ${lingoCopy("English", "spatialMove")}`
-    moveContent.textSize = 36
-    moveContent.contentAlignment = "center"
-    this.spatialMoveContent = moveContent
+    moveRoot.getTransform().setLocalPosition(new vec3(-5.7, 33.1, 5))
+    this.spatialMoveContent = this.buildArtHandle(moveRoot, MOVE_HANDLE_ART, 12.6, lingoCopy("English", "spatialMove"))
 
     const manipulation = moveRoot.createComponent(InteractableManipulation.getTypeName()) as InteractableManipulation
     manipulation.setManipulateRoot(this.sceneObject.getTransform())
@@ -243,21 +253,13 @@ export class LingoSpaceMain extends BaseScriptComponent {
 
     const recenterRoot = global.scene.createSceneObject("Follow Me Again")
     recenterRoot.setParent(this.sceneObject)
-    recenterRoot.getTransform().setLocalPosition(new vec3(6.8, 33.1, 5))
-    const recenterButton = recenterRoot.createComponent(Button.getTypeName()) as Button
-    recenterButton.setVariant({theme: "SnapOS3", shape: "Capsule", style: "Secondary"})
-    styleLingoButton(recenterButton, "neutral")
-    recenterButton.size = new vec3(9.5, 4, 1)
-    recenterButton.onInitialized.add(() => {
-      recenterButton.size = new vec3(9.5, 4, 1)
-      this.marshmallow(recenterButton)
-    })
-    const recenterContent = recenterRoot.createComponent(ElementContent.getTypeName()) as ElementContent
-    recenterContent.text = `↺  ${lingoCopy("English", "spatialFollow")}`
-    recenterContent.textSize = 34
-    recenterContent.contentAlignment = "center"
-    this.spatialRecenterContent = recenterContent
-    this.spatialRecenterButton = recenterButton
+    recenterRoot.getTransform().setLocalPosition(new vec3(7.1, 33.1, 5))
+    this.spatialRecenterContent = this.buildArtHandle(recenterRoot, FOLLOW_HANDLE_ART, 12.2, lingoCopy("English", "spatialFollow"))
+    this.spatialRecenterButton = recenterRoot.getComponent(Button.getTypeName()) as Button
+
+    // Sun / moon brightness toggle, right of FOLLOW: full brightness at start, half at night.
+    this.brightness = new LingoSpaceBrightness(this, this.sceneObject, new vec3(18.4, 33.1, 5))
+    const brightnessRoot = this.brightness.toggleRoot
 
     // MOVER/SEGUIR must never vanish behind a container: HUD backgrounds draw
     // at order 6-8 and their content up to 18, so the grab handles get 26-28.
@@ -268,6 +270,7 @@ export class LingoSpaceMain extends BaseScriptComponent {
       delayed.bind(() => {
         if (!isNull(moveRoot)) this.raiseGrabControlOrders(moveRoot)
         if (!isNull(recenterRoot)) this.raiseGrabControlOrders(recenterRoot)
+        if (!isNull(brightnessRoot)) this.raiseGrabControlOrders(brightnessRoot)
       })
       delayed.reset(orderDelays[i])
     }
@@ -298,8 +301,8 @@ export class LingoSpaceMain extends BaseScriptComponent {
     const profile = this.progress.getProfile()
     this.nativeLanguage = profile.nativeLanguage
     this.targetLanguage = profile.targetLanguage
-    if (this.nativeLanguage && this.spatialMoveContent) this.spatialMoveContent.text = `✦  ${lingoCopy(this.nativeLanguage, "spatialMove")}`
-    if (this.nativeLanguage && this.spatialRecenterContent) this.spatialRecenterContent.text = `↺  ${lingoCopy(this.nativeLanguage, "spatialFollow")}`
+    if (this.nativeLanguage && this.spatialMoveContent) this.spatialMoveContent.text = `${lingoCopy(this.nativeLanguage, "spatialMove")}`
+    if (this.nativeLanguage && this.spatialRecenterContent) this.spatialRecenterContent.text = `${lingoCopy(this.nativeLanguage, "spatialFollow")}`
     this.audioXp = profile.audioXp
     this.textXp = profile.textXp
     this.menuUI.setUserName(profile.userName || "Learner")
@@ -311,8 +314,8 @@ export class LingoSpaceMain extends BaseScriptComponent {
     this.menuUI.onNativeLanguageSelected.add((value) => {
       if (isLanguageId(value)) {
         this.nativeLanguage = value
-        if (this.spatialMoveContent) this.spatialMoveContent.text = `✦  ${lingoCopy(value, "spatialMove")}`
-        if (this.spatialRecenterContent) this.spatialRecenterContent.text = `↺  ${lingoCopy(value, "spatialFollow")}`
+        if (this.spatialMoveContent) this.spatialMoveContent.text = `${lingoCopy(value, "spatialMove")}`
+        if (this.spatialRecenterContent) this.spatialRecenterContent.text = `${lingoCopy(value, "spatialFollow")}`
         this.targetLanguage = null
         this.learningMode = null
         this.progress.setLanguages(this.nativeLanguage, null)
@@ -332,6 +335,40 @@ export class LingoSpaceMain extends BaseScriptComponent {
       if (value === "IMAGE" || value === "SCAN") this.learningMode = value
       this.audio.playClick()
     })
+    this.menuUI.onLiveTalkSelected.add((partner) => this.openLiveTalk(partner))
+    this.talkUI.onSceneChosen.add((scene) => this.startSceneForMode(scene as TalkScene))
+    this.talkUI.onBackRequested.add(() => this.returnToModeSelection())
+    this.talkUI.onVoiceHoldStart.add((purpose) => {
+      this.talkMicPurpose = purpose
+      this.startVoicePractice()
+    })
+    this.talkUI.onVoiceHoldEnd.add(() => this.finishVoicePractice())
+    this.talkUI.onListenRequested.add(() => this.speakTalkLine(this.talk.lastPartnerLine()))
+    this.talkUI.onDrillSpeak.add((request) => {
+      if (request.kind === "cue") this.speakTalkLine(request.text)
+      else this.speakModelSentence(request.text)
+    })
+    this.talkUI.onDrillFinished.add((result) => this.finishDrill(result.correct, result.total, result.xp, result.items))
+    this.talkUI.onHintRequested.add(() => this.requestTalkHint())
+    this.talkUI.onPlacementSelfReport.add((level) => {
+      this.placementSelfReport = level
+      this.placementAnswers = []
+      this.nextPlacementStep()
+    })
+    this.talkUI.onPlacementSkip.add(() => {
+      this.placementAnswers.push({question: this.placementQuestion, answer: ""})
+      this.nextPlacementStep()
+    })
+    this.talkUI.onPlacementListen.add(() => this.speakModelSentence(this.placementQuestion))
+    this.catcher.onHoldStart.add(() => {
+      this.talkMicPurpose = "CATCH"
+      this.startVoicePractice()
+    })
+    this.catcher.onHoldEnd.add(() => this.finishVoicePractice())
+    this.catcher.onSpeak.add((word) => this.speakModelSentence(word))
+    this.catcher.onFinished.add((result) => this.showCatcherResults(result))
+    this.catcher.onExit.add(() => this.returnToModeSelection())
+    this.talkUI.onEndRequested.add(() => this.endTalkScene())
     this.menuUI.onStart.add(() => {
       this.imageBatchIndex = 0
       this.startRound()
@@ -389,11 +426,40 @@ export class LingoSpaceMain extends BaseScriptComponent {
     console.log("LINGO SPACE ready: native → target → mode")
   }
 
-  /** Full pill corners: the marshmallow look for the panel grab handles. */
-  private marshmallow(button: Button): void {
-    const visual = button.visual as RoundedRectangleVisual
-    if (visual instanceof RoundedRectangleVisual) visual.cornerRadius = 2
+  /** Grab handle drawn from its designed PNG (icon baked in), label beside the icon.
+   * The SIK button stays for hover / pinch but its own capsule is cleared. */
+  private buildArtHandle(root: SceneObject, art: ArtPiece, width: number, label: string): Text {
+    const height = 4
+    const button = root.createComponent(Button.getTypeName()) as Button
+    button.setVariant({theme: "SnapOS3", shape: "Capsule", style: "Ghost"})
+    button.size = new vec3(width, height, 1)
+    button.onInitialized.add(() => {
+      button.size = new vec3(width, height, 1)
+      clearButtonVisual(button)
+    })
+    artImage(root, art, width, new vec3(0, 0, 0.4), "Handle Art")
+    const textRoot = global.scene.createSceneObject("Handle Label")
+    textRoot.setParent(root)
+    // The baked icon sits at ~27% of the width: center the label on the rest.
+    const textWidth = width * 0.6
+    textRoot.getTransform().setLocalPosition(new vec3(width * 0.12, 0, 0.6))
+    const text = textRoot.createComponent("Component.Text") as Text
+    text.text = label
+    text.font = LINGO_FONT_BOLD
+    text.size = 36
+    text.depthTest = false
+    text.horizontalAlignment = HorizontalAlignment.Center
+    text.verticalAlignment = VerticalAlignment.Center
+    text.horizontalOverflow = HorizontalOverflow.Shrink
+    text.worldSpaceRect = Rect.create(-textWidth / 2, textWidth / 2, -height / 2, height / 2)
+    text.textFill.color = LINGO_COLORS.white
+    // Grows a little under the finger, like the other buttons.
+    button.onHoverEnter.add(() => root.getTransform().setLocalScale(new vec3(1.05, 1.05, 1)))
+    button.onHoverExit.add(() => root.getTransform().setLocalScale(vec3.one()))
+    return text
   }
+
+
 
   private detachPanelFromHead(): void {
     if (this.spatialHeadlock) this.spatialHeadlock.enabled = false
@@ -1154,6 +1220,10 @@ export class LingoSpaceMain extends BaseScriptComponent {
   }
 
   private startVoicePractice(): void {
+    if (this.talkActive) {
+      this.startTalkVoice()
+      return
+    }
     if (this.huntActive) {
       print("[LINGO ASR] talk blocked: hunt active")
       return
@@ -1219,6 +1289,10 @@ export class LingoSpaceMain extends BaseScriptComponent {
   private finishVoicePractice(): void {
     if (!this.voicePracticeActive) return
     this.voiceHoldWatchdog.cancel()
+    if (this.talkActive) {
+      this.finishTalkVoice()
+      return
+    }
     const practiceCard = this.currentPracticeCard()
     if (!practiceCard || !this.nativeLanguage || !this.targetLanguage) {
       this.voicePracticeActive = false
@@ -1313,6 +1387,10 @@ export class LingoSpaceMain extends BaseScriptComponent {
     this.scanSituation = null
     this.quizActive = false
     this.quizUI.hide()
+    this.talkActive = false
+    this.audio.setMusicSuppressed(false)
+    this.talkUI.hide()
+    this.catcher.stop()
     this.glossaryUI.hide()
     this.completionUI.hide()
     this.boardUI.hide()
@@ -1328,6 +1406,7 @@ export class LingoSpaceMain extends BaseScriptComponent {
 
   private whisperMode = false
   private nightMode: LingoSpaceNightMode | null = null
+  private brightness: LingoSpaceBrightness | null = null
   private tutorial: LingoSpaceTutorial | null = null
 
   private tutorialShownThisSession = false
@@ -1448,6 +1527,462 @@ export class LingoSpaceMain extends BaseScriptComponent {
     this.scanPhrases = shelved.phrases
     this.lastScannedRoom = shelved.room
     console.log(`LINGO SPACE language switch: restored ${restored} session cards for ${key}`)
+  }
+
+  /** Live Talk: SPEAK = guided speaking practice, AI = free conversation. Both start at the scene picker. */
+  private openLiveTalk(partner: string): void {
+    this.audio.playClick()
+    if (!this.nativeLanguage || !this.targetLanguage) return
+    this.menuUI.hide()
+    this.talkActive = true
+    this.audio.setMusicSuppressed(true)
+    const level = this.progress.getLevel(this.targetLanguage)
+    this.talk.setLevel(level || "A1")
+    if (partner === "CATCH") {
+      this.startCatcher()
+      return
+    }
+    this.talkUI.open(this.nativeLanguage, this.targetLanguage, partner === "SPEAK" ? "SPEAK" : "AI", level)
+  }
+
+  /** CLOUD CATCHER: a 60-second round with bubbles of the learner's own words (and the app's). */
+  private startCatcher(): void {
+    if (!this.nativeLanguage || !this.targetLanguage) return
+    this.talkUI.hide()
+    const level = this.talk.getLevel()
+    this.catcher.start(this.catcherWords(level), this.nativeLanguage, this.targetLanguage, level)
+  }
+
+  /** Scanned words first (they have art and are the learner's world), topped up with
+   * reference vocabulary. Advanced levels get the scans' short phrases instead. */
+  private catcherWords(level: SpeakingLevel): CatcherWord[] {
+    const words: CatcherWord[] = []
+    const seen: Record<string, boolean> = {}
+    const add = (word: string, translation: string, phonetic: string, texture: Texture | null) => {
+      const key = word.trim().toLowerCase()
+      if (!key || seen[key]) return
+      seen[key] = true
+      words.push({word: word.trim(), translation, phonetic, texture})
+    }
+    const phrases = level === "B1" || level === "B2"
+    this.activateSavedLibrary()
+    for (let i = 0; i < this.savedScanCards.length; i++) {
+      const entry = this.savedScanCards[i]
+      const card = entry.card
+      if (phrases && card.phrase && card.phrase.split(/\s+/).length <= 6) add(card.phrase, card.phraseTranslation || card.translation, card.phrasePhonetic || "", entry.texture)
+      else add(card.word, card.translation, card.phonetic || "", entry.texture)
+    }
+    for (let batch = 0; words.length < 18 && batch < 4; batch++) {
+      const cards = getReferenceCards(this.targetLanguage!, this.nativeLanguage!, batch)
+      for (let i = 0; i < cards.length; i++) add(cards[i].word, cards[i].translation, cards[i].phonetic || "", CARD_IMAGES[cards[i].imageKey] || null)
+    }
+    print(`[LINGO CATCH] ${words.length} words (${this.savedScanCards.length} scanned) for level ${level}`)
+    return words
+  }
+
+  private showCatcherResults(result: CatcherResult): void {
+    if (!this.nativeLanguage || !this.targetLanguage) return
+    const xp = Math.round(result.score / 2)
+    if (xp > 0) {
+      this.audioXp += xp
+      this.progress.recordXp(this.audioXp, this.textXp)
+    }
+    const stars = catcherStars(result.caught)
+    const next = CATCHER_STAR_GOALS.find((goal) => goal > result.caught)
+    const note = next === undefined ? "" : lingoCopy(this.nativeLanguage, "catcherMissing").replace("{count}", String(next - result.caught)).replace("{stars}", "★".repeat(stars + 1))
+    this.talkUI.showGameResults(
+      this.nativeLanguage,
+      this.targetLanguage,
+      {
+        title: lingoCopy(this.nativeLanguage, "catcherDone"),
+        note,
+        stars,
+        // Accuracy: words caught out of every spoken try.
+        scorePercent: result.attempts > 0 ? Math.round(Math.min(1, result.caught / result.attempts) * 100) : 0,
+        bestStreak: result.bestStreak,
+        xp,
+        correct: result.caught,
+        toPractice: result.missed.map((word) => ({text: word.word, translation: word.translation, phonetic: word.phonetic})),
+      },
+      lingoCopy(this.nativeLanguage, "catcherPlayAgain"),
+      () => this.startCatcher(),
+      () => this.returnToModeSelection(),
+      (word) => this.speakModelSentence(word),
+    )
+  }
+
+  /** Adaptive spoken placement test: next question, or the verdict saved per language. */
+  private nextPlacementStep(): void {
+    if (!this.nativeLanguage || !this.targetLanguage) return
+    if (!global.deviceInfoSystem.isInternetAvailable()) {
+      this.talkUI.setStatus(lingoCopy(this.nativeLanguage, "voiceNeedsInternet"), true)
+      return
+    }
+    const generation = this.talkUI.currentGeneration()
+    this.talk.placementStep(this.nativeLanguage, this.targetLanguage, this.placementSelfReport, this.placementAnswers)
+      .then((step) => {
+        if (generation !== this.talkUI.currentGeneration() || !this.targetLanguage) return
+        if (step.done) {
+          print(`[LINGO TALK] placement: ${this.targetLanguage} = ${step.level}`)
+          this.progress.setLevel(this.targetLanguage, step.level)
+          this.talk.setLevel(step.level)
+          this.talkUI.showPlacementResult(step.level, step.message)
+          if (step.message) this.speakNative(step.message)
+          return
+        }
+        this.placementQuestion = step.question.text
+        this.talkUI.showPlacementQuestion(this.placementAnswers.length + 1, step)
+        this.after(0.45, () => this.speakModelSentence(step.question.text))
+      })
+      .catch((error) => {
+        console.error(`LINGO SPACE placement error: ${error}`)
+        if (generation === this.talkUI.currentGeneration()) this.talkUI.setStatus(lingoCopy(this.nativeLanguage, "talkFailed"), true)
+      })
+  }
+
+  /** Speech pace follows the learner's level: slow and clear for beginners, natural later. */
+  private talkPace(): string {
+    switch (this.talk.getLevel()) {
+      case "A0": return "slowly and very clearly, with small pauses between words"
+      case "A1": return "slowly and clearly"
+      case "A2": return "slightly slower than normal and clearly"
+      default: return "at a natural, native pace"
+    }
+  }
+
+  private speakNative(text: string): void {
+    if (!this.nativeLanguage || !global.deviceInfoSystem.isInternetAvailable()) return
+    this.ai.setSpeechAnchor(null)
+    this.ai.speak(text, `Say this warmly and clearly in ${this.nativeLanguage}. Do not add anything.`)
+      .catch((error) => console.error(`LINGO SPACE talk TTS error: ${error}`))
+  }
+
+  private after(seconds: number, action: () => void): void {
+    const delayed = this.createEvent("DelayedCallbackEvent")
+    delayed.bind(action)
+    delayed.reset(seconds)
+  }
+
+  private startSceneForMode(scene: TalkScene, customPlace: string = ""): void {
+    if (this.talkUI.currentMode() === "SPEAK") this.startDrill(scene, customPlace)
+    else this.startTalkScene(scene, customPlace)
+  }
+
+  /** PRACTICA HABLAR: the AI writes a 5-line dialogue lesson for the scene. */
+  private startDrill(scene: TalkScene, customPlace: string): void {
+    if (!this.nativeLanguage || !this.targetLanguage) return
+    this.ai.stopSpeaking()
+    this.talkUI.beginDrill(scene, customPlace)
+    if (!global.deviceInfoSystem.isInternetAvailable()) {
+      this.talkUI.setStatus(lingoCopy(this.nativeLanguage, "voiceNeedsInternet"), true)
+      return
+    }
+    const generation = this.talkUI.currentGeneration()
+    this.talk.buildDrill(scene, this.nativeLanguage, this.targetLanguage, this.roomWordsForTalk(), customPlace)
+      .then((plan) => {
+        if (generation !== this.talkUI.currentGeneration()) return
+        print(`[LINGO TALK] drill ready: ${plan.items.map((item) => item.line.text).join(" | ")}`)
+        this.talkUI.startDrill(plan)
+      })
+      .catch((error) => {
+        console.error(`LINGO SPACE drill error: ${error}`)
+        if (generation === this.talkUI.currentGeneration()) this.talkUI.setStatus(lingoCopy(this.nativeLanguage, "talkFailed"), true)
+      })
+  }
+
+  /** The learner's model line: slow and clear, to imitate. */
+  private speakModelSentence(text: string): void {
+    if (!text || !this.targetLanguage || !global.deviceInfoSystem.isInternetAvailable()) return
+    this.ai.setSpeechAnchor(null)
+    this.ai.speak(
+      text,
+      `Say this ${this.targetLanguage} sentence like a patient teacher modeling it for a learner to repeat, ${this.talkPace()}. Do not add, repeat, or translate anything.`,
+    ).catch((error) => console.error(`LINGO SPACE drill TTS error: ${error}`))
+  }
+
+  /** Spoken coaching: feedback in the learner's language, then the sentence again to imitate. */
+  private coachDrillSentence(heard: string, generation: number): Promise<void> {
+    const target = this.talkUI.drillTarget()
+    if (!target) return Promise.resolve()
+    print(`[LINGO TALK] drill attempt: "${heard}" vs "${target.text}"`)
+    this.talkUI.setDrillBusy()
+    return this.talk.coachSentence(heard, target)
+      .catch(() => ({correct: this.ai.similarityScore(heard, target.text) >= 70, coach: ""}))
+      .then((result) => {
+        if (generation !== this.talkUI.currentGeneration()) return
+        print(`[LINGO TALK] drill coach correct=${result.correct}: ${result.coach}`)
+        const xp = this.talkUI.drillResult(result.correct)
+        if (xp > 0) {
+          // Speaking practice earns audio XP, like pronunciation in the quiz.
+          this.audioXp += xp
+          this.progress.recordXp(this.audioXp, this.textXp)
+        }
+        // The next sentence waits for the coach to finish talking — never cut the praise.
+        const moveOn = this.talkUI.drillWaitingForNext()
+        const continueDrill = () => {
+          if (moveOn) this.talkUI.continueDrill(generation)
+        }
+        if (!this.nativeLanguage || !this.targetLanguage || !global.deviceInfoSystem.isInternetAvailable()) {
+          this.after(1.6, continueDrill)
+          return
+        }
+        const coach = result.coach || (result.correct ? lingoCopy(this.nativeLanguage, "talkPerfect") : lingoCopy(this.nativeLanguage, "quizWrong"))
+        this.ai.setSpeechAnchor(null)
+        this.ai.speakAndWait(
+          result.correct ? coach : `${coach} ... ${target.text}`,
+          result.correct
+            ? `Say this praise warmly in ${this.nativeLanguage}. Do not add anything.`
+            : `First say the coaching warmly in ${this.nativeLanguage}; after the pause, say the final sentence slowly and clearly in ${this.targetLanguage} so the learner can imitate it. Do not add, repeat, or translate anything.`,
+        ).then(() => this.after(0.6, continueDrill))
+        // Safety net: a voice that never reports its end can't freeze the lesson.
+        if (moveOn) this.after(25, continueDrill)
+      })
+  }
+
+  private finishDrill(correct: number, total: number, xp: number, items: {line: TalkLine}[]): void {
+    const score = lingoCopy(this.nativeLanguage, "drillScore").replace("{count}", String(correct)).replace("{total}", String(total))
+    const praise = score
+    const ratio = total > 0 ? correct / total : 0
+    const stars = ratio >= 0.8 ? 3 : ratio >= 0.5 ? 2 : 1
+    this.talkUI.showSummary(
+      {stars, praise, tip: "", phrases: items.map((item) => item.line), xp},
+      () => this.talkUI.showScenePicker(),
+      () => this.returnToModeSelection(),
+      (text) => this.speakModelSentence(text),
+    )
+  }
+
+  private startTalkScene(scene: TalkScene, customPlace: string = ""): void {
+    if (!this.nativeLanguage || !this.targetLanguage) return
+    this.ai.stopSpeaking()
+    this.talkUI.beginScene(scene, customPlace)
+    if (!global.deviceInfoSystem.isInternetAvailable()) {
+      this.talkUI.setStatus(lingoCopy(this.nativeLanguage, "voiceNeedsInternet"), true)
+      return
+    }
+    const generation = this.talkUI.currentGeneration()
+    this.talk.open(scene, this.nativeLanguage, this.targetLanguage, this.roomWordsForTalk(), customPlace)
+      .then((opening) => {
+        if (generation !== this.talkUI.currentGeneration()) return
+        print(`[LINGO TALK] scene ${scene} opened as ${opening.role}`)
+        this.talkUI.showOpening(opening.role, opening.goals, opening.goalIcons, opening.line)
+        this.speakTalkLine(opening.line.text)
+      })
+      .catch((error) => {
+        console.error(`LINGO SPACE talk open error: ${error}`)
+        if (generation === this.talkUI.currentGeneration()) this.talkUI.setStatus(lingoCopy(this.nativeLanguage, "talkFailed"), true)
+      })
+  }
+
+  /** Scanned words of this language pair: "My room" talks about them, every other scene reuses them where they fit. */
+  private roomWordsForTalk(): string[] {
+    this.activateSavedLibrary()
+    const seen: Record<string, boolean> = {}
+    const words: string[] = []
+    for (let i = 0; i < this.savedScanCards.length && words.length < 24; i++) {
+      const word = this.savedScanCards[i].card.word.trim()
+      const key = word.toLowerCase()
+      if (!word || seen[key]) continue
+      seen[key] = true
+      words.push(word)
+    }
+    return words
+  }
+
+  private speakTalkLine(text: string): void {
+    if (!text || !this.targetLanguage || !global.deviceInfoSystem.isInternetAvailable()) return
+    this.ai.setSpeechAnchor(null)
+    this.ai.speak(
+      text,
+      `You play a friendly character in a role-play with a beginner learning ${this.targetLanguage}. Say this ${this.targetLanguage} line warmly and naturally, ${this.talkPace()}. Do not add, repeat, or translate anything.`,
+    ).catch((error) => console.error(`LINGO SPACE talk TTS error: ${error}`))
+  }
+
+  private speakCoachThenLine(coach: string, line: string): void {
+    if (!this.nativeLanguage || !this.targetLanguage || !global.deviceInfoSystem.isInternetAvailable()) return
+    this.ai.setSpeechAnchor(null)
+    this.ai.speak(
+      `${coach} ... ${line}`,
+      `First say the short correction warmly in ${this.nativeLanguage}, like a friendly teacher; after the pause, say the final line naturally in ${this.targetLanguage}, in character, ${this.talkPace()}. Do not add, repeat, or translate anything.`,
+    ).catch((error) => console.error(`LINGO SPACE talk coach TTS error: ${error}`))
+  }
+
+  private startTalkVoice(): void {
+    if (!global.deviceInfoSystem.isInternetAvailable()) {
+      this.talkVoiceStatus(this.talkMicPurpose, lingoCopy(this.nativeLanguage, "voiceNeedsInternet"), true)
+      return
+    }
+    // Same guards as card practice: SIK double-fire is ignored, a stale hold is replaced.
+    if (this.voicePracticeActive) {
+      if (getTime() - this.voicePracticeStartedAt < 0.6) return
+      this.voicePracticeActive = false
+      this.setMicDucking(false)
+      this.voiceFinalizeEvent.cancel()
+      this.voiceCleanupEvent.cancel()
+      this.ai.abortListening()
+    }
+    // The partner's voice must not leak into the learner's turn.
+    this.ai.stopSpeaking()
+    const purpose = this.talkMicPurpose
+    if (purpose === "TURN") this.talkUI.setStatus(lingoCopy(this.nativeLanguage, "releaseToStop"))
+    if (purpose === "PLACE") this.talkUI.setStatus(lingoCopy(this.nativeLanguage, "talkSayPlace"))
+    if (purpose === "SAY") this.talkUI.setStatus(lingoCopy(this.nativeLanguage, "releaseToStop"))
+    this.voicePracticeActive = this.ai.startListening(
+      (partial) => {
+        // The engine guesses the language on its own and sometimes writes French
+        // in Cyrillic or Devanagari: a wrong-alphabet partial shows as "…" and
+        // the AI rebuilds the real sentence from its sounds afterwards.
+        const shown = this.looksLikeTalkLanguages(partial) ? partial : "…"
+        this.talkVoiceStatus(purpose, `${lingoCopy(this.nativeLanguage, "listening")}… ${shown}`)
+      },
+      (error) => {
+        this.voicePracticeActive = false
+        this.setMicDucking(false)
+        this.talkVoiceStatus(purpose, error, true)
+      },
+    )
+    if (this.voicePracticeActive) {
+      this.voicePracticeStartedAt = getTime()
+      this.setMicDucking(true)
+      this.voiceHoldWatchdog.reset(15)
+    } else {
+      this.talkVoiceStatus(purpose, lingoCopy(this.nativeLanguage, "voiceBusy"), true)
+    }
+  }
+
+  private finishTalkVoice(): void {
+    this.voicePracticeActive = false
+    this.setMicDucking(false)
+    if (this.talkMicPurpose === "CATCH") {
+      this.finishCatcherVoice()
+      return
+    }
+    this.talkUI.setStatus(lingoCopy(this.nativeLanguage, "finishing"))
+    this.voiceFinalizeEvent.reset(3.0)
+    const generation = this.talkUI.currentGeneration()
+    const purpose = this.talkMicPurpose
+    this.ai.finishListening()
+      .then((transcript) => {
+        this.voiceFinalizeEvent.cancel()
+        if (this.ai.needsForcedCleanup()) this.voiceCleanupEvent.reset(0.05)
+        if (generation !== this.talkUI.currentGeneration()) return
+        const heard = transcript.trim()
+        if (!heard) {
+          this.talkUI.setStatus(lingoCopy(this.nativeLanguage, "nothingHeard"), true)
+          return
+        }
+        if (purpose === "PLACE") {
+          print(`[LINGO TALK] custom place: ${heard}`)
+          this.startSceneForMode("CUSTOM", heard)
+          return
+        }
+        if (purpose === "SAY") return this.coachDrillSentence(heard, generation)
+        if (purpose === "LEVEL") {
+          print(`[LINGO TALK] placement answer: ${heard}`)
+          this.placementAnswers.push({question: this.placementQuestion, answer: heard})
+          this.talkUI.setBusy(lingoCopy(this.nativeLanguage, "talkThinking"))
+          this.nextPlacementStep()
+          return
+        }
+        print(`[LINGO TALK] learner said: ${heard}`)
+        this.talkUI.showLearnerLine(heard)
+        return this.talk.reply(heard).then((reply) => {
+          if (generation !== this.talkUI.currentGeneration()) return
+          this.talkUI.showReply(reply.correction, reply.goalsMet, reply.finished, reply.line)
+          // Corrections are spoken, not written: the coach's note in the learner's
+          // language, then the partner carries on in the studied language.
+          if (reply.correction.ok || !reply.correction.coach) this.speakTalkLine(reply.line.text)
+          else this.speakCoachThenLine(reply.correction.coach, reply.line.text)
+        })
+      })
+      .catch((error) => {
+        this.voiceFinalizeEvent.cancel()
+        console.error(`LINGO SPACE talk turn error: ${error}`)
+        if (generation === this.talkUI.currentGeneration()) this.talkUI.setStatus(lingoCopy(this.nativeLanguage, "talkFailed"), true)
+      })
+  }
+
+  /** CLOUD CATCHER: whatever was heard goes to the game, which finds the bubble. */
+  private finishCatcherVoice(): void {
+    this.catcher.setStatus(lingoCopy(this.nativeLanguage, "finishing"))
+    this.voiceFinalizeEvent.reset(3.0)
+    this.ai.finishListening()
+      .then((transcript) => {
+        this.voiceFinalizeEvent.cancel()
+        if (this.ai.needsForcedCleanup()) this.voiceCleanupEvent.reset(0.05)
+        if (this.catcher.isRunning()) this.catcher.handleHeard(transcript.trim())
+      })
+      .catch((error) => {
+        this.voiceFinalizeEvent.cancel()
+        console.error(`LINGO SPACE catcher voice error: ${error}`)
+        if (this.catcher.isRunning()) this.catcher.handleHeard("")
+      })
+  }
+
+  /** Mic messages go to whichever surface owns the hold. */
+  private talkVoiceStatus(purpose: string, message: string, unlock: boolean = false): void {
+    if (purpose === "CATCH") {
+      this.catcher.setStatus(message)
+      if (unlock) this.catcher.unlock()
+    } else {
+      this.talkUI.setStatus(message, unlock)
+    }
+  }
+
+  /** True when the text is written in an alphabet one of the two chosen languages uses. */
+  private looksLikeTalkLanguages(text: string): boolean {
+    const letters = text.replace(/[\s\d.,;:!?¿¡'"()\-–—…]/g, "")
+    if (!letters) return true
+    const japanese = this.nativeLanguage === "Japanese" || this.targetLanguage === "Japanese"
+    let foreign = 0
+    for (let i = 0; i < letters.length; i++) {
+      const code = letters.charCodeAt(i)
+      const latin = code < 0x0250 || (code >= 0x1e00 && code <= 0x1eff)
+      const cjk = (code >= 0x3000 && code <= 0x30ff) || (code >= 0x4e00 && code <= 0x9fff) || (code >= 0xff00 && code <= 0xffef)
+      if (!latin && !(japanese && cjk)) foreign += 1
+    }
+    return foreign / letters.length < 0.3
+  }
+
+  /** AI PRACTICE help: three replies in writing, and the simplest one spoken slowly. */
+  private requestTalkHint(): void {
+    if (!global.deviceInfoSystem.isInternetAvailable()) {
+      this.talkUI.setStatus(lingoCopy(this.nativeLanguage, "voiceNeedsInternet"), true)
+      return
+    }
+    const generation = this.talkUI.currentGeneration()
+    this.talkUI.setBusy(lingoCopy(this.nativeLanguage, "talkThinking"))
+    this.talk.suggest()
+      .then((options) => {
+        if (generation !== this.talkUI.currentGeneration()) return
+        this.talkUI.showSuggestions(options)
+        if (options[0]) this.speakModelSentence(options[0].text)
+      })
+      .catch((error) => {
+        console.error(`LINGO SPACE talk hint error: ${error}`)
+        if (generation === this.talkUI.currentGeneration()) this.talkUI.setStatus(lingoCopy(this.nativeLanguage, "talkFailed"), true)
+      })
+  }
+
+  /** FINISH: a scene with at least one learner turn earns its summary card. */
+  private endTalkScene(): void {
+    this.ai.stopSpeaking()
+    const spoke = this.talk.getHistory().some((turn) => turn.role === "learner")
+    if (!spoke || !global.deviceInfoSystem.isInternetAvailable()) {
+      this.talkUI.showScenePicker()
+      return
+    }
+    const generation = this.talkUI.currentGeneration()
+    this.talkUI.setBusy(lingoCopy(this.nativeLanguage, "talkThinking"))
+    this.talk.summarize()
+      .then((summary) => {
+        if (generation !== this.talkUI.currentGeneration()) return
+        this.talkUI.showSummary(summary, () => this.talkUI.showScenePicker(), () => this.returnToModeSelection(), (text) => this.speakModelSentence(text))
+      })
+      .catch((error) => {
+        console.error(`LINGO SPACE talk summary error: ${error}`)
+        if (generation === this.talkUI.currentGeneration()) this.talkUI.showScenePicker()
+      })
   }
 
   /** BACK from a section: languages stay chosen, land on the mode choice. */

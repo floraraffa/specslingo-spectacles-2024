@@ -1,0 +1,280 @@
+/** Live Talk brain: role-play scenes with a gentle per-turn language coach.
+ * Turn-based over Chat Completions (proven on device with the ASR + TTS stack);
+ * the voice transport stays in the caller so a Realtime session can replace it. */
+import {OpenAI} from "RemoteServiceGateway.lspkg/HostedExternal/OpenAI"
+import {OpenAITypes} from "RemoteServiceGateway.lspkg/HostedExternal/OpenAITypes"
+import {LanguageId, usesNonLatinScript} from "./LingoSpaceData"
+
+export type TalkScene = "CAFE" | "AIRPORT" | "FRIEND" | "ROOM" | "CUSTOM"
+export type TalkTurn = {role: "partner" | "learner", text: string}
+export type TalkLine = {text: string, translation: string, phonetic: string}
+export type TalkOpening = {role: string, goals: string[], line: TalkLine}
+export type TalkCorrection = {ok: boolean, better: string, why: string}
+export type TalkReply = {correction: TalkCorrection, goalsMet: number[], finished: boolean, line: TalkLine}
+export type TalkSummary = {stars: number, praise: string, tip: string, phrases: TalkLine[]}
+/** What a real person just said, translated, plus replies the learner can use. */
+export type HumanHeard = {original: string, translation: string, replies: TalkLine[]}
+/** The learner's own turn with a real person: coached, or translated when said natively. */
+export type HumanMine = {spokeTarget: boolean, ok: boolean, better: string, phonetic: string, why: string}
+
+const MODEL = "gpt-4.1-mini"
+
+const SCENE_BRIEFS: Record<TalkScene, string> = {
+  CAFE: "a cozy café. You are the friendly barista taking the learner's order (drinks, size, something to eat, paying).",
+  AIRPORT: "an airport check-in desk. You are the airline agent (passport, destination, luggage, seat, boarding gate).",
+  FRIEND: "a relaxed meetup where the learner meets a new friend. You are that new friend (names, where you are from, hobbies, making plans).",
+  ROOM: "the learner's own room. You are a curious, cheerful visitor asking about the objects in the room and what the learner does with them.",
+  CUSTOM: "",
+}
+
+export class LingoSpaceTalkService {
+  private scene: TalkScene = "CAFE"
+  private nativeLanguage: LanguageId = "English"
+  private targetLanguage: LanguageId = "Spanish"
+  private roomWords: string[] = []
+  private role = ""
+  private goals: string[] = []
+  private history: TalkTurn[] = []
+  private customPlace = ""
+  /** Face-to-face mode keeps its own short context: what was said on both sides. */
+  private humanHistory: TalkTurn[] = []
+
+  getHistory(): TalkTurn[] { return this.history.slice() }
+  getGoals(): string[] { return this.goals.slice() }
+  lastPartnerLine(): string {
+    for (let i = this.history.length - 1; i >= 0; i--) {
+      if (this.history[i].role === "partner") return this.history[i].text
+    }
+    return ""
+  }
+
+  /** Starts a fresh scene: the partner's role, three mission goals and the first line. */
+  open(scene: TalkScene, nativeLanguage: LanguageId, targetLanguage: LanguageId, roomWords: string[], customPlace: string = ""): Promise<TalkOpening> {
+    this.scene = scene
+    this.customPlace = this.clean(customPlace, 120)
+    this.role = ""
+    this.nativeLanguage = nativeLanguage
+    this.targetLanguage = targetLanguage
+    this.roomWords = roomWords.slice(0, 24)
+    this.history = []
+    this.goals = []
+    const instructions = [
+      this.persona(),
+      "Create the opening of this conversation.",
+      `Return JSON only: {"role": string, "goals": [string, string, string], "line": string, "translation": string${this.phoneticSchema()}}.`,
+      `"role": your role in 1-3 words, written in ${nativeLanguage}.`,
+      `"goals": exactly three small missions for the learner, in ${nativeLanguage}, imperative, max 7 words each, in the natural order of the conversation (for example: order a drink, ask the price, say goodbye).`,
+      `"line": your first friendly line in ${targetLanguage}, max 14 words, ending with a simple question.`,
+      `"translation": that line translated into ${nativeLanguage}.`,
+      this.phoneticRule(),
+    ].join(" ")
+    return this.ask(instructions, "Start the scene now.", 320, 0.7).then((parsed) => {
+      const goals = Array.isArray(parsed.goals) ? parsed.goals.map((goal: unknown) => this.clean(goal, 60)).filter((goal: string) => goal.length > 0).slice(0, 3) : []
+      this.role = this.clean(parsed.role, 40)
+      this.goals = goals
+      const line = this.readLine(parsed)
+      if (!line.text) throw new Error("Live Talk opening returned no line")
+      this.history.push({role: "partner", text: line.text})
+      return {role: this.role, goals: this.goals, line}
+    })
+  }
+
+  /** Coaches what the learner just said and continues the role-play. */
+  reply(learnerText: string): Promise<TalkReply> {
+    this.history.push({role: "learner", text: learnerText})
+    const instructions = [
+      this.persona(),
+      `Mission goals for the learner (0-based indices): ${JSON.stringify(this.goals)}.`,
+      "First coach the learner's LAST message, then continue the role-play.",
+      "The learner's text comes from speech recognition, which may write the sounds in the wrong alphabet (Cyrillic, Devanagari…) or as near-miss words: read it by how it sounds, ignore punctuation, capitalization and spelling quirks, and judge meaning, grammar, word choice and naturalness.",
+      "Be warm and lenient: if a native speaker would find it correct and natural, it is ok.",
+      `If the learner spoke ${this.nativeLanguage} instead of ${this.targetLanguage}, it is not ok: "better" shows how to say it in ${this.targetLanguage} and "why" kindly invites them to try it in ${this.targetLanguage}.`,
+      `Return JSON only: {"ok": boolean, "better": string, "why": string, "goalsMet": number[], "finished": boolean, "line": string, "translation": string${this.phoneticSchema()}}.`,
+      `"better": when not ok, the natural ${this.targetLanguage} version of what the learner meant (max 16 words); empty string when ok.`,
+      `"why": when not ok, ONE short kind explanation in ${this.nativeLanguage}, max 16 words; empty string when ok.`,
+      "\"goalsMet\": indices of ALL goals achieved so far in the whole conversation.",
+      "\"finished\": true only when every goal is met AND your line naturally closes the conversation.",
+      `"line": your next reply in ${this.targetLanguage}, max 14 words, in character; unless closing, end with a simple question that steers toward the next unmet goal.`,
+      `"translation": that line in ${this.nativeLanguage}.`,
+      this.phoneticRule(),
+    ].join(" ")
+    return this.ask(instructions, this.transcript(), 380, 0.5).then((parsed) => {
+      const line = this.readLine(parsed)
+      if (!line.text) throw new Error("Live Talk reply returned no line")
+      this.history.push({role: "partner", text: line.text})
+      const goalsMet = Array.isArray(parsed.goalsMet)
+        ? parsed.goalsMet.map((value: unknown) => Number(value)).filter((value: number) => value >= 0 && value < this.goals.length)
+        : []
+      const ok = parsed.ok === true
+      return {
+        correction: {ok, better: ok ? "" : this.clean(parsed.better, 140), why: ok ? "" : this.clean(parsed.why, 160)},
+        goalsMet,
+        finished: parsed.finished === true,
+        line,
+      }
+    }).catch((error) => {
+      // The learner's turn stays in the transcript only when the partner answered.
+      this.history.pop()
+      throw error
+    })
+  }
+
+  /** "What do I say?": three replies to the partner's last line, simplest first. */
+  suggest(): Promise<TalkLine[]> {
+    const instructions = [
+      this.persona(),
+      `Mission goals for the learner: ${JSON.stringify(this.goals)}.`,
+      `Suggest three different replies the LEARNER could say next, in ${this.targetLanguage}, from simplest (3-5 words) to richer (max 12 words). Each must answer your last line and move toward the next unmet goal.`,
+      `Return JSON only: {"options": [{"text": string, "translation": string${this.phoneticSchema()}}]}.`,
+      `"translation" is in ${this.nativeLanguage}.`,
+      this.phoneticRule(),
+    ].join(" ")
+    return this.ask(instructions, this.transcript(), 320, 0.6).then((parsed) => {
+      const options = Array.isArray(parsed.options) ? parsed.options : []
+      return options.map((option: unknown) => this.readLine(option)).filter((line: TalkLine) => line.text.length > 0).slice(0, 3)
+    })
+  }
+
+  /** End-of-scene report card. */
+  summarize(): Promise<TalkSummary> {
+    const instructions = [
+      `You are a warm ${this.targetLanguage} teacher reviewing a beginner's role-play (scene: ${this.sceneBrief()}).`,
+      `Mission goals: ${JSON.stringify(this.goals)}.`,
+      `Return JSON only: {"stars": 1|2|3, "praise": string, "tip": string, "phrases": [{"text": string, "translation": string${this.phoneticSchema()}}]}.`,
+      "\"stars\": 3 = goals met with mostly natural language, 2 = goals mostly met, 1 = needs more practice.",
+      `"praise": one specific encouraging sentence in ${this.nativeLanguage}, max 18 words.`,
+      `"tip": the single most useful thing to improve, in ${this.nativeLanguage}, max 20 words.`,
+      `"phrases": up to three useful ${this.targetLanguage} phrases from this scene worth remembering, translated into ${this.nativeLanguage}.`,
+      this.phoneticRule(),
+    ].join(" ")
+    return this.ask(instructions, this.transcript(), 380, 0.4).then((parsed) => {
+      const stars = Math.max(1, Math.min(3, Math.round(Number(parsed.stars) || 1)))
+      const phrases = Array.isArray(parsed.phrases) ? parsed.phrases.map((phrase: unknown) => this.readLine(phrase)).filter((line: TalkLine) => line.text.length > 0).slice(0, 3) : []
+      return {stars, praise: this.clean(parsed.praise, 160), tip: this.clean(parsed.tip, 180), phrases}
+    })
+  }
+
+  private persona(): string {
+    const room = this.scene === "ROOM" && this.roomWords.length > 0
+      ? ` Objects the learner has in this room (in ${this.targetLanguage}): ${this.roomWords.join(", ")}. Ask about them.`
+      : ""
+    return [
+      `You role-play a scene for a language learner whose native language is ${this.nativeLanguage} and who is learning ${this.targetLanguage}.`,
+      `Scene: ${this.sceneBrief()}${room}`,
+      this.role ? `Your role: ${this.role}.` : "",
+      "Learner level: beginner (CEFR A1-A2). Use short sentences, everyday vocabulary and one question at a time.",
+      `You always speak ${this.targetLanguage} in character. Never break character inside "line".`,
+    ].join(" ")
+  }
+
+  private sceneBrief(): string {
+    if (this.scene !== "CUSTOM") return SCENE_BRIEFS[this.scene]
+    return `this place, named by the learner (maybe in ${this.nativeLanguage}): "${this.customPlace}". You play the person the learner would most naturally talk to there (for example the pharmacist in a pharmacy, the guide in a museum), and the conversation is what typically happens in that place.`
+  }
+
+  /** Face to face: starts a fresh conversation context with a real person. */
+  startHuman(nativeLanguage: LanguageId, targetLanguage: LanguageId): void {
+    this.nativeLanguage = nativeLanguage
+    this.targetLanguage = targetLanguage
+    this.humanHistory = []
+  }
+
+  /** ECHO: the learner repeats, half-remembers or paraphrases what the other
+   * person just said (in either language). Restore the most likely original
+   * line, translate it, and offer three replies. */
+  interpretEcho(echo: string): Promise<HumanHeard> {
+    const instructions = [
+      `You help a learner (native ${this.nativeLanguage}, learning ${this.targetLanguage}, beginner level) in a real face-to-face conversation with someone who speaks ${this.targetLanguage}.`,
+      `The glasses cannot hear the other person, so the learner repeats aloud what they understood: it may be a partial or imperfect repetition in ${this.targetLanguage}, a paraphrase in ${this.nativeLanguage}, or a mix ("I think she asked if I want water"). It comes from speech recognition: judge by how it sounds, ignore spelling quirks, and use the conversation context.`,
+      `Return JSON only: {"original": string, "translation": string, "replies": [{"text": string, "translation": string${this.phoneticSchema()}}]}.`,
+      `"original": the most likely sentence the other person said, written naturally in ${this.targetLanguage}.`,
+      `"translation": its meaning in ${this.nativeLanguage}.`,
+      `"replies": exactly three short natural answers the learner could say back in ${this.targetLanguage}, simplest first (2-5 words, then max 10 words). Translations in ${this.nativeLanguage}.`,
+      this.phoneticRule(),
+    ].join(" ")
+    return this.ask(instructions, `${this.humanTranscript()}\nLEARNER'S ECHO of what the other person just said: ${echo}`, 300, 0.3).then((parsed) => {
+      const original = this.clean(parsed.original, 220) || this.clean(echo, 220)
+      this.humanHistory.push({role: "partner", text: original})
+      this.trimHuman()
+      const replies = Array.isArray(parsed.replies) ? parsed.replies.map((reply: unknown) => this.readLine(reply)).filter((line: TalkLine) => line.text.length > 0).slice(0, 3) : []
+      return {original, translation: this.clean(parsed.translation, 240), replies}
+    })
+  }
+
+  /** The learner answered: coach it if it was in the target language, or give the phrase to say. */
+  checkMine(said: string): Promise<HumanMine> {
+    const instructions = [
+      `You coach a beginner (native ${this.nativeLanguage}, learning ${this.targetLanguage}) during a real face-to-face conversation.`,
+      `You receive speech-recognition text of what the LEARNER just said, in ${this.targetLanguage} or ${this.nativeLanguage}. The recognizer guesses the language: an accented ${this.targetLanguage} attempt may come out in the wrong alphabet or as a neighbor language (Portuguese, Spanish…). Judge by how it SOUNDS and by the conversation context; ignore punctuation and spelling quirks.`,
+      `Return JSON only: {"spokeTarget": boolean, "ok": boolean, "better": string, "why": string${this.phoneticSchema()}}.`,
+      `"spokeTarget": true if the learner was trying to speak ${this.targetLanguage}.`,
+      `If spokeTarget: "ok" is true when a native speaker would understand it as correct and natural in context; when not ok, "better" is the natural ${this.targetLanguage} version (max 14 words) and "why" one kind explanation in ${this.nativeLanguage} (max 14 words).`,
+      `If NOT spokeTarget: the learner is asking how to say something. "ok" is false, "better" is the natural ${this.targetLanguage} phrase to say to the other person (max 14 words), "why" is an empty string.`,
+      usesNonLatinScript(this.targetLanguage) ? `"phonetic" is the romanized pronunciation of "better" (empty when ok).` : "",
+    ].join(" ")
+    return this.ask(instructions, `${this.humanTranscript()}\nLEARNER (just now): ${said}`, 220, 0.2).then((parsed) => {
+      const spokeTarget = parsed.spokeTarget === true
+      const ok = spokeTarget && parsed.ok === true
+      const better = ok ? "" : this.clean(parsed.better, 160)
+      this.humanHistory.push({role: "learner", text: spokeTarget ? said : (better || said)})
+      this.trimHuman()
+      return {spokeTarget, ok, better, phonetic: ok ? "" : this.clean(parsed.phonetic, 180), why: ok ? "" : this.clean(parsed.why, 160)}
+    })
+  }
+
+  private humanTranscript(): string {
+    if (this.humanHistory.length === 0) return "Conversation so far: (just started)"
+    const lines = this.humanHistory.map((turn) => `${turn.role === "partner" ? "OTHER PERSON" : "LEARNER"}: ${turn.text}`)
+    return `Conversation so far:\n${lines.join("\n")}`
+  }
+
+  private trimHuman(): void {
+    if (this.humanHistory.length > 10) this.humanHistory = this.humanHistory.slice(-10)
+  }
+
+  private phoneticSchema(): string {
+    return usesNonLatinScript(this.targetLanguage) ? ", \"phonetic\": string" : ""
+  }
+
+  private phoneticRule(): string {
+    return usesNonLatinScript(this.targetLanguage)
+      ? `Every "phonetic" is the romanized pronunciation (for example Hepburn romaji) of its ${this.targetLanguage} text.`
+      : ""
+  }
+
+  private transcript(): string {
+    const lines = this.history.map((turn) => `${turn.role === "partner" ? "YOU" : "LEARNER"}: ${turn.text}`)
+    return `Conversation so far:\n${lines.join("\n")}`
+  }
+
+  private readLine(source: any): TalkLine {
+    if (!source || typeof source !== "object") return {text: "", translation: "", phonetic: ""}
+    return {
+      text: this.clean(source.line ?? source.text, 180),
+      translation: this.clean(source.translation, 200),
+      phonetic: this.clean(source.phonetic, 200),
+    }
+  }
+
+  private clean(value: unknown, max: number): string {
+    return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max)
+  }
+
+  private ask(system: string, user: string, maxTokens: number, temperature: number): Promise<any> {
+    const messages: OpenAITypes.ChatCompletions.Message[] = [
+      {role: "system", content: system},
+      {role: "user", content: user},
+    ]
+    return OpenAI.chatCompletions({
+      model: MODEL,
+      messages,
+      response_format: {type: "json_object"},
+      temperature,
+      max_completion_tokens: maxTokens,
+    }).then((response) => {
+      const content = response.choices?.[0]?.message?.content
+      if (!content) throw new Error("Live Talk returned no content")
+      return JSON.parse(content.replace(/^```(?:json)?\s*|\s*```$/g, ""))
+    })
+  }
+}

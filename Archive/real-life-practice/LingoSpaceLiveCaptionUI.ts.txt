@@ -1,0 +1,401 @@
+/** Face-to-face caption card: wide and short, low in the view, so the person
+ * in front of the wearer stays visible. Left column: what they said, its
+ * translation, what I said and its coaching. Right column: three tappable
+ * replies. Bottom: WHAT I UNDERSTOOD (hold), MY TURN (hold) and BACK.
+ * The glasses only hear their wearer (Bystander Speech Rejection), so the
+ * other person's words come in through the wearer repeating them. */
+import {RoundedRectangleVisual} from "SpectaclesUIKit.lspkg/Scripts/Visuals/RoundedRectangle/RoundedRectangleVisual"
+import {IMAGE_MATERIAL_ASSET} from "SpectaclesUIKit.lspkg/Scripts/Components/Element"
+import Event, {PublicApi} from "SpectaclesInteractionKit.lspkg/Utils/Event"
+import {Button515 as Button} from "./compat515/Button515"
+import {hasDenseScript, LanguageId} from "./LingoSpaceData"
+import {lingoCopy, LingoCopyKey} from "./LingoSpaceLocalization"
+import {LINGO_COLORS, LINGO_FONT, LingoTone, styleLingoButton} from "./LingoSpaceTheme"
+import {LingoSpaceAudioController} from "./LingoSpaceAudioController"
+import {LingoFX} from "./LingoSpaceFX"
+import {HumanHeard, HumanMine, TalkLine} from "./LingoSpaceTalkService"
+
+const PANEL_TEXTURE = requireAsset("../ScreenDesign/background2.png") as Texture
+const MIC_ICON = requireAsset("../Icons/mic.png") as Texture
+const ECHO_ICON = requireAsset("../Icons/refresh.png") as Texture
+const BACK_ICON = requireAsset("../Icons/arrow_back.png") as Texture
+const LANGUAGE_CLOUDS: Record<LanguageId, Texture> = {
+  Spanish: requireAsset("../LingoDesign/nube-es.png") as Texture,
+  English: requireAsset("../LingoDesign/nube-en.png") as Texture,
+  German: requireAsset("../LingoDesign/nube-gr.png") as Texture,
+  French: requireAsset("../LingoDesign/nube-fr.png") as Texture,
+  Italian: requireAsset("../LingoDesign/nube-it.png") as Texture,
+  Japanese: requireAsset("../LingoDesign/nube-jp.png") as Texture,
+}
+
+const WIDTH = 52
+const HEIGHT = 27
+// Below the eye line of the head-locked root: the speaker's face stays clear.
+const CARD_POSITION = new vec3(0, -7, 4)
+const COLUMN_WIDTH = 23.5
+const LEFT_X = -WIDTH / 4 + 0.4
+const RIGHT_X = WIDTH / 4 - 0.4
+const REPLY_HEIGHT = 3.9
+const ORDER = {background: 30, image: 31, text: 32, buttonMesh: 33, buttonIcon: 34, buttonText: 35}
+const INK = LINGO_COLORS.ink
+const PURPLE = new vec4(0.45, 0.25, 0.85, 1)
+const TEAL = new vec4(0.03, 0.42, 0.38, 1)
+const GREEN = new vec4(0.05, 0.48, 0.3, 1)
+const ORANGE = new vec4(0.75, 0.3, 0.08, 1)
+
+type ReplySlot = {root: SceneObject, text: Text, translation: Text, value: string}
+export type CaptionStatus = "waiting" | "listeningMine" | "thinking" | "error"
+
+export class LingoSpaceLiveCaptionUI {
+  private root: SceneObject
+  private fx: LingoFX
+  private nativeLanguage: LanguageId = "English"
+  private cloudMaterial!: Material
+  private statusText!: Text
+  private theySayLabel!: Text
+  private heardText!: Text
+  private translationText!: Text
+  private mineText!: Text
+  private feedbackText!: Text
+  private repliesLabel!: Text
+  private replies: ReplySlot[] = []
+  private echoLabel!: Text
+  private mineLabel!: Text
+  private backLabel!: Text
+  private echoHeld = false
+  private mineHeld = false
+  private busy = false
+  private _onClose = new Event<void>()
+  private _onReplyTapped = new Event<string>()
+  private _onEchoStart = new Event<void>()
+  private _onEchoEnd = new Event<void>()
+  private _onMineStart = new Event<void>()
+  private _onMineEnd = new Event<void>()
+
+  get onClose(): PublicApi<void> { return this._onClose.publicApi() }
+  get onReplyTapped(): PublicApi<string> { return this._onReplyTapped.publicApi() }
+  /** WHAT I UNDERSTOOD held: the wearer repeats what the other person said. */
+  get onEchoStart(): PublicApi<void> { return this._onEchoStart.publicApi() }
+  get onEchoEnd(): PublicApi<void> { return this._onEchoEnd.publicApi() }
+  get onMineStart(): PublicApi<void> { return this._onMineStart.publicApi() }
+  get onMineEnd(): PublicApi<void> { return this._onMineEnd.publicApi() }
+
+  constructor(owner: SceneObject, private host: BaseScriptComponent, private audio: LingoSpaceAudioController) {
+    this.fx = new LingoFX(host)
+    this.root = this.makeObject(owner, "Live Caption Card", CARD_POSITION)
+    // Opaque illustrated panel (same art as the glossary): text never fights the room.
+    this.addImage(this.root, PANEL_TEXTURE, WIDTH, HEIGHT, new vec3(0, 0, 0), "Live Caption Background")
+    const cloud = this.addImage(this.root, LANGUAGE_CLOUDS.French, 8.5, 8.5, new vec3(-WIDTH / 2 + 3, HEIGHT / 2 - 1.2, 0.5), "Live Caption Cloud")
+    this.cloudMaterial = (cloud.getComponent("Component.Image") as Image).mainMaterial
+
+    const top = HEIGHT / 2
+    this.statusText = this.addText(this.root, "", 36, 2.6, 34, PURPLE, new vec3(-WIDTH / 2 + 25, top - 2.4, 1), HorizontalAlignment.Left)
+
+    // Left column: they said → translation → I said → coaching.
+    this.theySayLabel = this.addText(this.root, "", COLUMN_WIDTH, 2, 30, PURPLE, new vec3(LEFT_X, top - 5.2, 1), HorizontalAlignment.Left)
+    this.heardText = this.addText(this.root, "", COLUMN_WIDTH, 4.6, 38, INK, new vec3(LEFT_X, top - 8.6, 1), HorizontalAlignment.Left)
+    this.translationText = this.addText(this.root, "", COLUMN_WIDTH, 3.4, 32, TEAL, new vec3(LEFT_X, top - 12.7, 1), HorizontalAlignment.Left)
+    this.mineText = this.addText(this.root, "", COLUMN_WIDTH, 2.2, 30, PURPLE, new vec3(LEFT_X, top - 15.6, 1), HorizontalAlignment.Left)
+    this.feedbackText = this.addText(this.root, "", COLUMN_WIDTH, 3.2, 31, GREEN, new vec3(LEFT_X, top - 18.4, 1), HorizontalAlignment.Left)
+
+    // Right column: replies.
+    this.repliesLabel = this.addText(this.root, "", COLUMN_WIDTH, 2, 30, PURPLE, new vec3(RIGHT_X, top - 5.2, 1), HorizontalAlignment.Left)
+    for (let i = 0; i < 3; i++) this.addReplySlot(i, new vec3(RIGHT_X, top - 8.4 - i * (REPLY_HEIGHT + 0.5), 1))
+
+    // Bottom actions.
+    const bottom = -HEIGHT / 2 + 3
+    const echo = this.addActionButton(ECHO_ICON, 17, "primary", new vec3(-14.5, bottom, 1.2))
+    this.echoLabel = this.findLabel(echo)
+    echo.onTriggerDown.add(() => {
+      if (this.mineHeld || this.busy) {
+        this.audio.playSoftReturn()
+        return
+      }
+      this.echoHeld = true
+      this.heardText.text = "…"
+      this.translationText.text = ""
+      this._onEchoStart.invoke()
+    })
+    echo.onTriggerUp.add(() => this.releaseEcho())
+    const mine = this.addActionButton(MIC_ICON, 14, "home", new vec3(2, bottom, 1.2))
+    this.mineLabel = this.findLabel(mine)
+    mine.onTriggerDown.add(() => {
+      if (this.echoHeld || this.busy) {
+        this.audio.playSoftReturn()
+        return
+      }
+      this.mineHeld = true
+      this.mineText.text = `${this.copy("talkYou")}: …`
+      this.feedbackText.text = ""
+      this._onMineStart.invoke()
+    })
+    mine.onTriggerUp.add(() => this.releaseMine())
+    const back = this.addActionButton(BACK_ICON, 13, "neutral", new vec3(17, bottom, 1.2))
+    this.backLabel = this.findLabel(back)
+    back.onTriggerUp.add(() => {
+      this.audio.playClick()
+      this._onClose.invoke()
+    })
+    this.root.enabled = false
+  }
+
+  isOpen(): boolean { return this.root.enabled }
+
+  open(nativeLanguage: LanguageId, targetLanguage: LanguageId): void {
+    this.nativeLanguage = nativeLanguage
+    this.echoHeld = false
+    this.mineHeld = false
+    this.busy = false
+    this.cloudMaterial.mainPass.baseTex = LANGUAGE_CLOUDS[targetLanguage]
+    this.theySayLabel.text = this.copy("humanTheySay")
+    this.repliesLabel.text = this.copy("humanReplies")
+    this.echoLabel.text = this.copy("humanEcho")
+    this.mineLabel.text = this.copy("humanMyTurn")
+    this.backLabel.text = this.copy("back")
+    this.heardText.text = "…"
+    this.translationText.text = this.copy("humanIntro")
+    this.translationText.textFill.color = INK
+    this.mineText.text = ""
+    this.feedbackText.text = ""
+    this.setReplies([])
+    this.setStatus("waiting")
+    this.root.enabled = true
+    this.fx.popIn(this.root, {rotateDegrees: -5})
+    this.scheduleOrderPass()
+  }
+
+  /** Closing mid-turn still ends the mic session cleanly. */
+  hide(): void {
+    this.releaseEcho()
+    this.releaseMine()
+    this.root.enabled = false
+  }
+
+  setStatus(state: CaptionStatus): void {
+    const title = lingoCopy(this.nativeLanguage, "liveTalkHuman")
+    let detail = ""
+    switch (state) {
+      case "waiting": detail = this.copy("humanWaiting"); break
+      case "listeningMine": detail = `● ${this.copy("releaseToStop")}`; break
+      case "thinking": detail = `✦ ${this.copy("talkThinking")}`; break
+      case "error": detail = this.copy("talkFailed"); break
+    }
+    this.statusText.text = `${title}  ·  ${detail}`
+  }
+
+  /** One-off message in the status line (errors, "nothing heard"). */
+  showNotice(message: string): void {
+    this.statusText.text = `${lingoCopy(this.nativeLanguage, "liveTalkHuman")}  ·  ${message}`
+  }
+
+  setBusy(on: boolean): void {
+    this.busy = on
+    if (on) this.setStatus("thinking")
+  }
+
+  /** Live line while the wearer repeats what they understood. */
+  showEchoPartial(text: string): void {
+    this.heardText.text = `🔁 ${text || "…"}`
+    this.heardText.textFill.color = PURPLE
+  }
+
+  private showOtherLine(text: string): void {
+    this.theySayLabel.text = this.copy("humanTheySay")
+    this.heardText.text = text || "…"
+    this.heardText.textFill.color = INK
+    this.fitDense(this.heardText, 38)
+  }
+
+  /** Live line of what the wearer is saying while MY TURN is held. */
+  showMinePartial(text: string): void {
+    this.mineText.text = `${this.copy("talkYou")}: ${text || "…"}`
+  }
+
+  showOther(heard: HumanHeard): void {
+    this.busy = false
+    this.showOtherLine(heard.original)
+    this.translationText.text = heard.translation
+    this.translationText.textFill.color = TEAL
+    this.mineText.text = ""
+    this.feedbackText.text = ""
+    this.setReplies(heard.replies)
+    this.setStatus("waiting")
+  }
+
+  showMineResult(said: string, result: HumanMine): void {
+    this.busy = false
+    this.mineText.text = `${this.copy("talkYou")}: “${said}”`
+    if (result.ok) {
+      this.feedbackText.text = this.copy("humanGood")
+      this.feedbackText.textFill.color = GREEN
+    } else if (!result.spokeTarget) {
+      const sound = result.phonetic ? ` (${result.phonetic})` : ""
+      this.feedbackText.text = `${this.copy("humanSayIt")} ${result.better}${sound}`
+      this.feedbackText.textFill.color = GREEN
+    } else {
+      this.feedbackText.text = `↻ ${result.better}${result.why ? ` — ${result.why}` : ""}`
+      this.feedbackText.textFill.color = ORANGE
+    }
+    this.fitDense(this.feedbackText, 31)
+    this.setStatus("waiting")
+  }
+
+  private releaseEcho(): void {
+    if (!this.echoHeld) return
+    this.echoHeld = false
+    this._onEchoEnd.invoke()
+  }
+
+  private releaseMine(): void {
+    if (!this.mineHeld) return
+    this.mineHeld = false
+    this._onMineEnd.invoke()
+  }
+
+  /** Empty slots stay visible as soft placeholders so the layout never jumps. */
+  private setReplies(lines: TalkLine[]): void {
+    for (let i = 0; i < this.replies.length; i++) {
+      const slot = this.replies[i]
+      const line = lines[i]
+      if (!line || !line.text) {
+        slot.value = ""
+        slot.text.text = "…"
+        slot.translation.text = ""
+        continue
+      }
+      slot.value = line.text
+      slot.text.text = line.phonetic ? `${line.text} (${line.phonetic})` : line.text
+      this.fitDense(slot.text, 32)
+      slot.translation.text = line.translation
+    }
+  }
+
+  private addReplySlot(index: number, position: vec3): void {
+    const width = COLUMN_WIDTH
+    const root = this.makeObject(this.root, `Live Reply ${index}`, position)
+    const button = root.createComponent(Button.getTypeName()) as Button
+    button.setVariant({theme: "SnapOS3", shape: "Capsule", style: "Secondary"})
+    styleLingoButton(button, "card")
+    button.size = new vec3(width, REPLY_HEIGHT, 1)
+    button.onInitialized.add(() => {
+      button.size = new vec3(width, REPLY_HEIGHT, 1)
+      const visual = button.visual as RoundedRectangleVisual
+      if (visual instanceof RoundedRectangleVisual) visual.cornerRadius = REPLY_HEIGHT / 2
+    })
+    const text = this.addText(root, "…", width - 2.6, 2, 32, INK, new vec3(0, 0.8, 1.35))
+    const translation = this.addText(root, "", width - 2.6, 1.6, 27, TEAL, new vec3(0, -0.95, 1.35))
+    const slot: ReplySlot = {root, text, translation, value: ""}
+    button.onTriggerUp.add(() => {
+      if (!slot.value) return
+      this.audio.playClick()
+      this._onReplyTapped.invoke(slot.value)
+    })
+    this.replies.push(slot)
+  }
+
+  private addActionButton(icon: Texture, width: number, tone: LingoTone, position: vec3): Button {
+    const height = 3.8
+    const root = this.makeObject(this.root, `Live Action ${width}`, position)
+    const button = root.createComponent(Button.getTypeName()) as Button
+    button.setVariant({theme: "SnapOS3", shape: "Capsule", style: "Primary"})
+    styleLingoButton(button, tone)
+    button.size = new vec3(width, height, 1)
+    button.onInitialized.add(() => {
+      button.size = new vec3(width, height, 1)
+      const visual = button.visual as RoundedRectangleVisual
+      if (visual instanceof RoundedRectangleVisual) visual.cornerRadius = height / 2
+    })
+    this.addImage(root, icon, 1.4, 1.4, new vec3(-width / 2 + 1.6, 0, 1.35), "Live Action Icon")
+    const text = this.addText(root, "", width - 3.6, 2.4, 30, LINGO_COLORS.white, new vec3(0.8, 0, 1.35))
+    text.horizontalOverflow = HorizontalOverflow.Shrink
+    return button
+  }
+
+  private findLabel(button: Button): Text {
+    const object = button.getSceneObject()
+    for (let i = 0; i < object.getChildrenCount(); i++) {
+      const text = object.getChild(i).getComponent("Component.Text") as Text | null
+      if (text) return text
+    }
+    throw new Error("Live caption button has no label")
+  }
+
+  private copy(key: LingoCopyKey): string {
+    return lingoCopy(this.nativeLanguage, key)
+  }
+
+  private fitDense(text: Text, base: number): void {
+    text.size = hasDenseScript(text.text) ? Math.round(base * 1.25) : base
+  }
+
+  private addImage(parent: SceneObject, texture: Texture, width: number, height: number, position: vec3, name: string): SceneObject {
+    const root = this.makeObject(parent, name, position)
+    const image = root.createComponent("Component.Image") as Image
+    const material = IMAGE_MATERIAL_ASSET.clone()
+    material.mainPass.baseTex = texture
+    material.mainPass.baseColor = new vec4(1, 1, 1, 1)
+    material.mainPass.blendMode = BlendMode.Normal
+    material.mainPass.depthTest = false
+    material.mainPass.depthWrite = false
+    material.mainPass.twoSided = true
+    image.clearMaterials()
+    image.addMaterial(material)
+    root.getTransform().setLocalScale(new vec3(width, height, 1))
+    return root
+  }
+
+  private addText(parent: SceneObject, value: string, width: number, height: number, size: number, color: vec4, position: vec3, alignment: HorizontalAlignment = HorizontalAlignment.Center): Text {
+    const root = this.makeObject(parent, "Live Caption Text", position)
+    const text = root.createComponent("Component.Text") as Text
+    text.text = value
+    text.font = LINGO_FONT
+    text.depthTest = false
+    text.size = size
+    ;(text as Text & {weight?: number}).weight = 700
+    text.horizontalAlignment = alignment
+    text.verticalAlignment = VerticalAlignment.Center
+    text.horizontalOverflow = HorizontalOverflow.Wrap
+    text.verticalOverflow = VerticalOverflow.Shrink
+    ;text.worldSpaceRect = Rect.create(-width / 2, width / 2, -height / 2, height / 2)
+    text.textFill.color = color
+    return text
+  }
+
+  /** The card floats over the scene: every layer stays above the other HUDs. */
+  private scheduleOrderPass(): void {
+    const delays = [0.3, 1.2]
+    for (let i = 0; i < delays.length; i++) {
+      const delayed = this.host.createEvent("DelayedCallbackEvent")
+      delayed.bind(() => {
+        if (!isNull(this.root)) this.applyOrders(this.root, false)
+      })
+      delayed.reset(delays[i])
+    }
+  }
+
+  private applyOrders(object: SceneObject, insideButton: boolean): void {
+    const isButton = insideButton || !!object.getComponent(Button.getTypeName())
+    const visuals = object.getComponents("Component.BaseMeshVisual") as BaseMeshVisual[]
+    for (let i = 0; i < visuals.length; i++) {
+      const visual = visuals[i]
+      const typeName = visual.getTypeName()
+      if (isButton) {
+        if (typeName === "Component.Text") visual.setRenderOrder(ORDER.buttonText)
+        else if (typeName === "Component.Image") visual.setRenderOrder(ORDER.buttonIcon)
+        else visual.setRenderOrder(ORDER.buttonMesh)
+        continue
+      }
+      if (object.name === "Live Caption Background") visual.setRenderOrder(ORDER.background)
+      else if (typeName === "Component.Text") visual.setRenderOrder(ORDER.text)
+      else visual.setRenderOrder(ORDER.image)
+    }
+    for (let i = 0; i < object.getChildrenCount(); i++) this.applyOrders(object.getChild(i), isButton)
+  }
+
+  private makeObject(parent: SceneObject, name: string, position?: vec3): SceneObject {
+    const object = global.scene.createSceneObject(name)
+    object.setParent(parent)
+    if (position) object.getTransform().setLocalPosition(position)
+    return object
+  }
+}

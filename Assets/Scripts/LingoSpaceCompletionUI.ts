@@ -14,7 +14,8 @@ import {RoundedRectangle} from "SpectaclesUIKit.lspkg/Scripts/Visuals/RoundedRec
 import Event, {PublicApi} from "SpectaclesInteractionKit.lspkg/Utils/Event"
 import {CategoryId, LanguageId} from "./LingoSpaceData"
 import {categoryName, lingoCopy} from "./LingoSpaceLocalization"
-import {LINGO_COLORS, LINGO_FONT, styleLingoButton} from "./LingoSpaceTheme"
+import {LINGO_COLORS} from "./LingoSpaceTheme"
+import {ART, ART_FLOW, artButton, artIcon, artImage, artLabel, ArtPiece, kitText} from "./LingoSpaceArtKit"
 
 const NEXT_ICON: Texture = requireAsset("../Icons/refresh.png") as Texture
 const LANGUAGE_ICON: Texture = requireAsset("../Icons/language.png") as Texture
@@ -27,8 +28,9 @@ export class LingoSpaceCompletionUI extends BaseScriptComponent {
   private title!: Text
   private summary!: Text
   private xpSummary!: Text
-  private nextContent!: ElementContent
-  private setupContent!: ElementContent
+  private titleTop!: Text
+  private nextContent!: Text
+  private setupContent!: Text
   private _onNextRound = new Event<void>()
   private _onChangeLanguage = new Event<void>()
 
@@ -55,27 +57,34 @@ export class LingoSpaceCompletionUI extends BaseScriptComponent {
     flex.direction = FlexDirection.Column
     flex.alignItems = FlexAlign.Stretch
     flex.justifyContent = FlexJustify.Start
-    flex.rowGap = 0.8
+    flex.rowGap = 1
     flex.paddingTop = 1.4
     flex.paddingBottom = 2
     flex.paddingLeft = 1.6
     flex.paddingRight = 1.6
-    this.addImage(content, LOGO_TEXTURE, 13.5, 13.5, "Completion Logo", undefined, FlexAlignSelf.Center)
-    this.title = this.addText(content, "MISSION COMPLETE!", 38, 4.2, 56, 700)
-    this.summary = this.addText(content, "HOME 0  •  FOOD 0\nWORK 0  •  TRAVEL 0\nPEOPLE 0  •  OUTSIDE 0", 38, 8, 41, 700)
-    this.xpSummary = this.addText(content, "AUDIO XP 0  •  TEXT XP 0\nTOTAL XP 0", 38, 5.2, 44, 700)
-    this.title.textFill.color = LINGO_COLORS.purple
-    this.summary.textFill.color = LINGO_COLORS.ink
-    this.xpSummary.textFill.color = new vec4(0.05, 0.48, 0.43, 1)
-    this.nextContent = this.addButton(content, "NEXT WORDS", NEXT_ICON, () => this._onNextRound.invoke(), "primary")
-    this.setupContent = this.addButton(content, "CHANGE LANGUAGES", LANGUAGE_ICON, () => this._onChangeLanguage.invoke(), "neutral")
+    // The Lingo Specs logo, then "MISSION COMPLETE!" as a bubbly title below it.
+    this.addImage(content, LOGO_TEXTURE, 16, 16, "Completion Logo", undefined, FlexAlignSelf.Center)
+    const titleSlot = this.addSlot(content, "Mission Title", 38, 4.4)
+    this.titleTop = this.bubblyLine(kitText(titleSlot, "", 38, 4.4, new vec3(0, 0, 1.2), 62, new vec4(0.36, 0.16, 0.9, 1)))
+
+    // Framed cream card: words learned per category, then the XP.
+    const cardWidth = 35
+    const cardHeight = cardWidth * ART.statsCard.aspect
+    const card = this.addSlot(content, "Mission Stats", cardWidth, cardHeight)
+    artImage(card, ART.statsCard, cardWidth, new vec3(0, 0, 0.4), "Mission Stats Art")
+    this.summary = kitText(card, "", cardWidth * 0.8, cardHeight * 0.48, new vec3(0, cardHeight * 0.15, 1.2), 38, LINGO_COLORS.ink, false)
+    this.xpSummary = kitText(card, "", cardWidth * 0.8, cardHeight * 0.3, new vec3(0, -cardHeight * 0.24, 1.2), 40, new vec4(0.05, 0.48, 0.43, 1))
+    this.title = this.titleTop
+
+    this.nextContent = this.addKitButton(content, ART.longPrimary, NEXT_ICON, () => this._onNextRound.invoke())
+    this.setupContent = this.addKitButton(content, ART.longDark, LANGUAGE_ICON, () => this._onChangeLanguage.invoke())
     this.hide()
   }
 
   showSummary(counts: Record<string, number>, audioXp: number, textXp: number, language: LanguageId): void {
     const name = (id: CategoryId): string => categoryName(id, language)
-    this.title.text = lingoCopy(language, "complete")
-    this.summary.text = `${name("HOME")} ${counts.HOME || 0}  •  ${name("FOOD")} ${counts.FOOD || 0}\n${name("WORK")} ${counts.WORK || 0}  •  ${name("TRAVEL")} ${counts.TRAVEL || 0}\n${name("PEOPLE")} ${counts.PEOPLE || 0}  •  ${name("OUTSIDE")} ${counts.OUTSIDE || 0}`
+    this.titleTop.text = lingoCopy(language, "complete")
+    this.summary.text = `${name("HOME")} ${counts.HOME || 0}  ·  ${name("FOOD")} ${counts.FOOD || 0}\n${name("WORK")} ${counts.WORK || 0}  •  ${name("TRAVEL")} ${counts.TRAVEL || 0}\n${name("PEOPLE")} ${counts.PEOPLE || 0}  •  ${name("OUTSIDE")} ${counts.OUTSIDE || 0}`
     this.xpSummary.text = `${lingoCopy(language, "audioXp")} ${audioXp}  •  ${lingoCopy(language, "textXp")} ${textXp}\n${lingoCopy(language, "totalXp")} ${audioXp + textXp}`
     this.nextContent.text = lingoCopy(language, "nextWords")
     this.setupContent.text = lingoCopy(language, "changeSetup")
@@ -84,58 +93,38 @@ export class LingoSpaceCompletionUI extends BaseScriptComponent {
   show(): void { this.sceneObject.enabled = true }
   hide(): void { this.sceneObject.enabled = false }
 
-  private addButton(parent: SceneObject, label: string, icon: Texture, action: () => void, tone: "primary" | "neutral"): ElementContent {
-    const root = this.makeObject(parent, label)
-    const button = root.createComponent(Button.getTypeName()) as Button
-    button.setVariant({theme: "SnapOS3", shape: "Capsule", style: tone === "primary" ? "Primary" : "Secondary"})
-    styleLingoButton(button, tone)
-    const content = root.createComponent(ElementContent.getTypeName()) as ElementContent
-    content.text = label
-    content.textSize = 39
-    content.leadingIcon = icon
-    content.leadingIconSize = 2
-    content.spacing = 0.8
-    content.sizeOverride = new vec2(32, 5)
-    const item = root.createComponent(FlexItem.getTypeName()) as FlexItem
-    item.overrideWidth = 32
-    item.overrideHeight = 5
-    button.onInitialized.add(() => {
-      button.size = new vec3(32, 5, 1)
-      button.onTriggerUp.add(action)
-    })
-    return content
+  /** Long kit button (no baked icon): a white icon on the left, the label beside it. */
+  private addKitButton(parent: SceneObject, art: ArtPiece, icon: Texture, action: () => void): Text {
+    const width = 35
+    const made = artButton(parent, art, width, "Completion Action")
+    const item = made.root.createComponent(FlexItem.getTypeName()) as FlexItem
+    item.overrideWidth = width
+    item.overrideHeight = made.height * ART_FLOW
+    item.flexShrink = 0
+    item.alignSelf = FlexAlignSelf.Center
+    artIcon(made.root, icon, width, 0.13, 2.4)
+    made.button.onTriggerUp.add(action)
+    return artLabel(made.root, art, width, "", 42)
   }
 
-  private addElement(parent: SceneObject, label: string, icon: Texture, width: number, height: number, textSize: number): void {
-    const root = this.makeObject(parent, `Element-${label}`)
-    const content = root.createComponent(ElementContent.getTypeName()) as ElementContent
-    content.text = label
-    content.textSize = textSize
-    content.leadingIcon = icon
-    content.leadingIconSize = 2.4
-    content.spacing = 0.8
-    content.sizeOverride = new vec2(width, height)
+  private addSlot(parent: SceneObject, name: string, width: number, height: number): SceneObject {
+    const root = this.makeObject(parent, name)
     const item = root.createComponent(FlexItem.getTypeName()) as FlexItem
     item.overrideWidth = width
     item.overrideHeight = height
+    item.flexShrink = 0
+    item.alignSelf = FlexAlignSelf.Center
+    return root
   }
 
-  private addText(parent: SceneObject, value: string, width: number, height: number, size: number, weight: number): Text {
-    const root = this.makeObject(parent, "Summary")
-    const text = root.createComponent("Component.Text") as Text
-    text.text = value
-    text.font = LINGO_FONT
-    text.depthTest = true
-    text.size = size
-    ;(text as Text & {weight?: number}).weight = weight
-    text.horizontalAlignment = HorizontalAlignment.Center
-    text.verticalAlignment = VerticalAlignment.Center
-    text.horizontalOverflow = HorizontalOverflow.Wrap
-    text.verticalOverflow = VerticalOverflow.Shrink
-    ;text.worldSpaceRect = Rect.create(-width / 2, width / 2, -height / 2, height / 2)
-    const item = root.createComponent(FlexItem.getTypeName()) as FlexItem
-    item.overrideWidth = width
-    item.overrideHeight = height
+  /** Bubbly title: deep violet letters, thick white outline, soft lilac shadow (as on every other screen). */
+  private bubblyLine(text: Text): Text {
+    text.outlineSettings.enabled = true
+    text.outlineSettings.size = 0.22
+    text.outlineSettings.fill.color = LINGO_COLORS.white
+    text.dropshadowSettings.enabled = true
+    text.dropshadowSettings.offset = new vec2(0.06, -0.12)
+    text.dropshadowSettings.fill.color = new vec4(0.55, 0.42, 0.95, 0.55)
     return text
   }
 

@@ -14,6 +14,7 @@ import {CategoryId, LanguageId, LearningMode, ScanSituation} from "./LingoSpaceD
 import {LingoSpaceScanUI} from "./LingoSpaceScanUI"
 import {categoryName, languageName, lingoCopy} from "./LingoSpaceLocalization"
 import {categoryTone, LINGO_COLORS, LINGO_FONT, styleLingoButton} from "./LingoSpaceTheme"
+import {backButton} from "./LingoSpaceArtKit"
 
 type CategoryView = {id: CategoryId, root: SceneObject, button: Button, countText: Text, icon: Texture}
 type ActionButtonView = {root: SceneObject, item: FlexItem, button: Button, content: ElementContent}
@@ -128,7 +129,7 @@ export class LingoSpaceBoardUI extends BaseScriptComponent {
   private scanButton!: Button
   private scanContent!: ElementContent
   private micContent!: ElementContent
-  private menuContent!: ElementContent
+  private menuContent!: Text
   private hudFlex!: FlexLayout
   private actionFlex!: FlexLayout
   private scanAction!: ActionButtonView
@@ -512,11 +513,13 @@ export class LingoSpaceBoardUI extends BaseScriptComponent {
     actionFlex.direction = FlexDirection.Row
     actionFlex.alignItems = FlexAlign.Center
     actionFlex.justifyContent = FlexJustify.Center
-    actionFlex.columnGap = 0.8
+    actionFlex.columnGap = 1.2
     this.registerFlexItem(content, actions, 43, 4.25)
-    const menu = this.addActionButton(actions, "MENU", null, 9.5)
-    this.menuContent = menu.content
-    menu.button.onTriggerUp.add(() => this._onReturnToMenu.invoke())
+    // The shared VOLVER art (a touch taller than its natural size to match the row).
+    const menu = backButton(actions, 14.5, "MENU", 34, 3.6)
+    this.registerFlexItem(actions, menu.made.root, 14.5, 3.6, FlexAlignSelf.Center)
+    this.menuContent = menu.label
+    menu.made.button.onTriggerUp.add(() => this._onReturnToMenu.invoke())
     const scan = this.addActionButton(actions, "SCAN", CAMERA_ICON, 12.5)
     this.scanAction = scan
     this.scanActionRegistered = true

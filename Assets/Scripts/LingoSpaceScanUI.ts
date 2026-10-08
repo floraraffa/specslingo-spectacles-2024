@@ -13,7 +13,8 @@ import WorldCameraFinderProvider from "SpectaclesInteractionKit.lspkg/Providers/
 import Event, {PublicApi} from "SpectaclesInteractionKit.lspkg/Utils/Event"
 import {hasDenseScript, LanguageId, ScanSituation, SituationPhrase} from "./LingoSpaceData"
 import {languageName, lingoCopy} from "./LingoSpaceLocalization"
-import {LINGO_COLORS, LINGO_FONT, styleLingoButton} from "./LingoSpaceTheme"
+import {LINGO_COLORS, LINGO_FONT, LINGO_FONT_BOLD, LINGO_FONT_SEMIBOLD, styleLingoButton} from "./LingoSpaceTheme"
+import {ART, ART_FLOW, artButton, artIcon, artImage, ArtPiece, fitRow, kitText} from "./LingoSpaceArtKit"
 import {LingoFX} from "./LingoSpaceFX"
 import {deferDestroy} from "./LingoSpaceDeferredDestroy"
 
@@ -51,6 +52,12 @@ const HUD_BACKGROUND_ORDER = 6
 
 const IMAGE_MATERIAL = IMAGE_MATERIAL_ASSET
 const CAMERA_ICON = requireAsset("../Icons/photo_camera.png") as Texture
+const TITLE_PURPLE = new vec4(0.36, 0.16, 0.9, 1)
+/** Top edge of the scan HUD in its owner's space (owner sits at +27 in the panel,
+ * handles at +33): the original -13 placement put the top here. */
+const SCAN_HUD_TOP_EDGE = 3.6
+const CARDS_ICON = requireAsset("../Icons/cards.png") as Texture
+const SEARCH_ICON = requireAsset("../Icons/search.png") as Texture
 const MIC_ICON = requireAsset("../Icons/mic.png") as Texture
 const VOLUME_ICON = requireAsset("../Icons/volume_up.png") as Texture
 const CARD_FRAME_TEXTURE = requireAsset("../BoardDesign/card central.png") as Texture
@@ -1067,6 +1074,11 @@ export class LingoSpaceScanUI {
   private summaryText!: Text
   private savedText!: Text
   private xpText!: Text
+  private xpAudioText!: Text
+  private xpTextText!: Text
+  private xpTotalText!: Text
+  private cameraCloudRoot!: SceneObject
+  private mapPinRoot!: SceneObject
   private statusText!: Text
   private internetText!: Text
   private scanActionContent!: Text
@@ -1131,7 +1143,7 @@ export class LingoSpaceScanUI {
     flex.justifyContent = FlexJustify.Center
     // Rows need head-room for wrapped lines: text can wrap beyond its rect,
     // and tight rows made neighboring rows overlap visually.
-    flex.rowGap = 0.4
+    flex.rowGap = 0.8
     flex.paddingTop = 0.8
     flex.paddingBottom = 0.8
     flex.paddingLeft = 0.8
@@ -1139,20 +1151,38 @@ export class LingoSpaceScanUI {
     flex.onLayoutComplete.add((result) => {
       // Wrap the illustrated frame around the content with breathing room for
       // its rounded corners and bottom cloud band.
-      this.backgroundRoot.getTransform().setLocalScale(new vec3(result.containerWidth + 5.5, result.containerHeight + 5, 1))
+      const width = result.containerWidth + 5.5
+      const height = result.containerHeight + 5
+      this.backgroundRoot.getTransform().setLocalScale(new vec3(width, height, 1))
+      // Pin the TOP edge just under the MOVE/FOLLOW handles: a taller HUD grows downward only.
+      this.root.getTransform().setLocalPosition(new vec3(0, SCAN_HUD_TOP_EDGE - height / 2, 2))
+      // Camera cloud and map pin perch on the top corners, spilling over the frame.
+      this.cameraCloudRoot.getTransform().setLocalPosition(new vec3(-width / 2 + 3.5, height / 2 - 4, 1.6))
+      this.mapPinRoot.getTransform().setLocalPosition(new vec3(width / 2 - 3, height / 2 - 4, 1.6))
     })
+    this.cameraCloudRoot = artImage(this.root, ART.cameraCloud, 12, new vec3(-24, 18, 1.6), "Scan Camera Cloud")
+    this.mapPinRoot = artImage(this.root, ART.mapPin, 10, new vec3(24, 18, 1.6), "Scan Map Pin")
 
     // Full-width, LEFT-aligned rows: centered ragged lines floated oddly in the
     // wide plate and wrapped early; left alignment uses the box edge to edge.
     this.languageText = this.addText(content, "SPANISH → FRENCH", 48, 1.5, "Caption", LINGO_COLORS.ink)
     // The language pair label doubles as the switcher: tap it to change target.
     this.addLanguageTapZone(this.languageText, 26)
-    this.situationText = this.addText(content, "SCAN YOUR ENVIRONMENT", 48, 2.8, "Headline", LINGO_COLORS.purple)
-    this.summaryText = this.addText(content, "Walk naturally and scan the objects around you.", 48, 2.6, "Body", LINGO_COLORS.ink)
-    this.savedText = this.addText(content, "0 OBJECT CARDS SAVED", 48, 1.9, "Body", new vec4(0.05, 0.48, 0.43, 1))
+    this.situationText = this.bubbly(this.addText(content, "SCAN YOUR ENVIRONMENT", 34, 3.4, "Headline", TITLE_PURPLE))
+    this.summaryText = this.addPillText(content, ART.cloudPill, 38, "Walk naturally and scan the objects around you.", 36, LINGO_COLORS.ink, 0.5)
+    this.savedText = this.addPillText(content, ART.checkPill, 32, "0 OBJECT CARDS SAVED", 32, new vec4(0.05, 0.48, 0.43, 1), 0.55)
     this.buildActions(content)
-    this.statusText = this.addText(content, "Scan a place to begin.", 48, 3, "Body", LINGO_COLORS.ink)
-    this.xpText = this.addText(content, "★ AUDIO 0  •  TEXT 0  •  TOTAL XP 0", 48, 2.6, "Body", new vec4(0.05, 0.48, 0.43, 1))
+    this.statusText = this.addText(content, "Scan a place to begin.", 48, 2.6, "Body", LINGO_COLORS.ink)
+    this.statusText.font = LINGO_FONT_BOLD
+    // XP on the same starry pill as the quiz: AUDIO · TEXT · TOTAL.
+    const statsWidth = 38
+    const stats = this.makeObject(content, "Scan XP Pill")
+    this.registerFlexItem(content, stats, statsWidth, statsWidth * ART.statsPill.aspect, FlexAlignSelf.Center)
+    artImage(stats, ART.statsPill, statsWidth, new vec3(0, 0, 0.4), "Scan XP Pill Art")
+    this.xpAudioText = kitText(stats, "", statsWidth * 0.2, 2.4, new vec3(statsWidth * -0.28, 0, 1.2), 32, LINGO_COLORS.ink)
+    this.xpTextText = kitText(stats, "", statsWidth * 0.2, 2.4, new vec3(statsWidth * 0.03, 0, 1.2), 32, LINGO_COLORS.ink)
+    this.xpTotalText = kitText(stats, "", statsWidth * 0.2, 2.4, new vec3(statsWidth * 0.35, 0, 1.2), 32, LINGO_COLORS.ink)
+    this.xpText = this.xpTotalText
     this.internetText = this.addText(content, "", 48, 1.5, "Caption", new vec4(0.82, 0.34, 0.12, 1))
 
     this.spatialCards = new SpatialScanCards(
@@ -1265,8 +1295,10 @@ export class LingoSpaceScanUI {
   }
 
   setXp(audioXp: number, textXp: number, earned: string = ""): void {
-    this.xpText.text = `★ ${lingoCopy(this.nativeLanguage, "audioXp")} ${audioXp}  •  ${lingoCopy(this.nativeLanguage, "textXp")} ${textXp}  •  ${lingoCopy(this.nativeLanguage, "totalXp")} ${audioXp + textXp}${earned ? `  ${earned}` : ""}`
-    this.xpText.textFill.color = earned ? new vec4(0.04, 0.5, 0.28, 1) : new vec4(0.05, 0.48, 0.43, 1)
+    this.xpAudioText.text = `${lingoCopy(this.nativeLanguage, "audioXp")} ${audioXp}`
+    this.xpTextText.text = `${lingoCopy(this.nativeLanguage, "textXp")} ${textXp}`
+    this.xpTotalText.text = `${audioXp + textXp} XP${earned ? `  ${earned}` : ""}`
+    this.xpTotalText.textFill.color = earned ? new vec4(0.04, 0.5, 0.28, 1) : LINGO_COLORS.ink
   }
 
   showScanner(_texture: Texture | null): void {
@@ -1382,7 +1414,7 @@ export class LingoSpaceScanUI {
   }
 
   setArtworkProgress(savedCount: number, readyCount: number): void {
-    this.savedText.text = `✓ ${savedCount} ${lingoCopy(this.nativeLanguage, "savedCards")}  •  ${readyCount} ${lingoCopy(this.nativeLanguage, "illustrationsReady")}`
+    this.savedText.text = `${savedCount} ${lingoCopy(this.nativeLanguage, "savedCards")}  •  ${readyCount} ${lingoCopy(this.nativeLanguage, "illustrationsReady")}`
   }
 
   setArtwork(index: number, texture: Texture): void { this.spatialCards.setArtwork(index, texture) }
@@ -1429,14 +1461,57 @@ export class LingoSpaceScanUI {
   private buildActions(parent: SceneObject): void {
     // Listen/talk live on the spatial cards themselves; the HUD keeps the two
     // navigation actions plus the review row (saved practice + word hunt).
-    const utilityRow = this.makeActionRow(parent, "Spatial Navigation Actions", 4.4)
-    // Primary purple for the hero action, neutral ink for MENU — the same pair
-    // the quiz and the MOVE/FOLLOW handles use.
-    this.addActionButton(utilityRow, "SCAN AGAIN", CAMERA_ICON, 20.5, "primary", () => this._onScanRequested.invoke())
-    this.addActionButton(utilityRow, "MENU", null, 20.9, "neutral", () => this._onReturnToMenu.invoke())
-    const reviewRow = this.makeActionRow(parent, "Saved Review Actions", 4.4)
-    this.addActionButton(reviewRow, "PRACTICE SAVED", null, 20.5, "home", () => this._onPracticeSaved.invoke())
-    this.addActionButton(reviewRow, "WORD HUNT", null, 20.9, "home", () => this._onHuntRequested.invoke())
+    const utilityRow = this.makeActionRow(parent, "Spatial Navigation Actions", 5)
+    this.addKitAction(utilityRow, "SCAN AGAIN", ART.scanCamera, null, () => this._onScanRequested.invoke())
+    this.addKitAction(utilityRow, "MENU", ART.scanBack, null, () => this._onReturnToMenu.invoke())
+    const reviewRow = this.makeActionRow(parent, "Saved Review Actions", 5)
+    this.addKitAction(reviewRow, "PRACTICE SAVED", ART.scanTealA, CARDS_ICON, () => this._onPracticeSaved.invoke())
+    this.addKitAction(reviewRow, "WORD HUNT", ART.scanTealB, SEARCH_ICON, () => this._onHuntRequested.invoke())
+  }
+
+  /** 2×2 grid button from the shared kit; every cell shares one height so the grid lines up. */
+  private addKitAction(parent: SceneObject, label: string, art: ArtPiece, icon: Texture | null, onClick: () => void): void {
+    const width = 22.5
+    const height = 5.6
+    const made = artButton(parent, art, width, label, vec3.zero(), height)
+    this.registerFlexItem(parent, made.root, width, height * ART_FLOW, FlexAlignSelf.Center)
+    fitRow(parent, height * ART_FLOW)
+    if (icon) artIcon(made.root, icon, width, 0.14, 2.3)
+    const span = width * art.labelSpan
+    const labelText = kitText(made.root, label, span, height * 0.55, new vec3((art.labelCenter - 0.5) * width, 0, 1.4), 38, LINGO_COLORS.white)
+    if (label === "SCAN AGAIN") {
+      this.scanActionContent = labelText
+      this.scanButtonObject = made.root
+    }
+    if (label === "MENU") this.menuActionContent = labelText
+    if (label === "PRACTICE SAVED") this.practiceActionContent = labelText
+    if (label === "WORD HUNT") this.huntActionContent = labelText
+    made.button.onTriggerUp.add(onClick)
+  }
+
+  /** A line of text on a kit pill (summary, saved count). */
+  private addPillText(parent: SceneObject, art: ArtPiece, width: number, value: string, size: number, color: vec4, center: number): Text {
+    const height = width * art.aspect
+    const root = this.makeObject(parent, "Scan Pill")
+    this.registerFlexItem(parent, root, width, height * 0.9, FlexAlignSelf.Center)
+    artImage(root, art, width, new vec3(0, 0, 0.4), "Scan Pill Art")
+    const text = kitText(root, value, width * art.labelSpan, height * 0.62, new vec3((center - 0.5) * width, 0, 1.2), size, color, false)
+    text.horizontalOverflow = HorizontalOverflow.Wrap
+    return text
+  }
+
+  /** Bubbly title: deep violet, white outline, soft lilac shadow (as on Live Talk). */
+  private bubbly(text: Text): Text {
+    text.font = LINGO_FONT_BOLD
+    text.size = 56
+    text.horizontalOverflow = HorizontalOverflow.Shrink
+    text.outlineSettings.enabled = true
+    text.outlineSettings.size = 0.22
+    text.outlineSettings.fill.color = LINGO_COLORS.white
+    text.dropshadowSettings.enabled = true
+    text.dropshadowSettings.offset = new vec2(0.06, -0.12)
+    text.dropshadowSettings.fill.color = new vec4(0.55, 0.42, 0.95, 0.55)
+    return text
   }
 
   /** Full pill corners: the marshmallow look shared by every other screen. */
@@ -1519,7 +1594,7 @@ export class LingoSpaceScanUI {
     const root = position.equal(vec3.zero()) ? parent : this.makeObject(parent, `Overlay ${value}`, position)
     const text = root.createComponent("Component.Text") as Text
     text.text = value
-    text.font = LINGO_FONT
+    text.font = role === "Headline" || role === "Subheadline" ? LINGO_FONT_BOLD : LINGO_FONT_SEMIBOLD
     text.depthTest = false
     text.size = TYPE_SCALE[role].size
     ;(text as Text & {weight?: number}).weight = TYPE_SCALE[role].weight
