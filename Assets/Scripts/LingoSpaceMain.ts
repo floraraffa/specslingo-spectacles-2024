@@ -7,6 +7,7 @@ import {GlossaryEntry, LingoSpaceGlossaryUI} from "./LingoSpaceGlossaryUI"
 import {LingoSpaceLanguagePicker} from "./LingoSpaceLanguagePicker"
 import {LingoSpaceNightMode} from "./LingoSpaceNightMode"
 import {LingoSpaceBrightness} from "./LingoSpaceBrightness"
+import {LingoSpaceWristCloud} from "./LingoSpaceWristCloud"
 import {LingoSpaceTutorial} from "./LingoSpaceTutorial"
 import {LingoSpaceTalkUI} from "./LingoSpaceTalkUI"
 import {LingoSpaceTalkService, PlacementAnswer, TalkLine, TalkScene} from "./LingoSpaceTalkService"
@@ -169,6 +170,8 @@ export class LingoSpaceMain extends BaseScriptComponent {
     this.ai = new LingoSpaceAIService(this.sceneObject)
     // Background music dips while the AI voice talks, mirroring the mic ducking.
     this.ai.setSpeechHooks(() => this.audio.duckMusic(), () => this.audio.restoreMusic())
+    // Right wrist: the studied language's cloud, a shortcut to Live Talk during scan and quiz.
+    this.wristCloud = new LingoSpaceWristCloud(this, this.sceneObject, this.audio, () => this.openLiveTalkFromWrist())
     this.glossaryUI = new LingoSpaceGlossaryUI(this.sceneObject, this, this.audio, () => this.glossaryEntries(), (word) => this.speakGlossaryWord(word), () => this.openLanguagePicker(), () => this.toggleWhisperMode(), () => this.replayTutorial())
     this.languagePicker = new LingoSpaceLanguagePicker(this, this.audio, (language) => this.applyTargetLanguageChange(language))
     this.fx = new LingoFX(this)
@@ -523,6 +526,7 @@ export class LingoSpaceMain extends BaseScriptComponent {
     this.glossaryUI.setLanguage(this.nativeLanguage)
     this.glossaryUI.setTargetLanguage(this.targetLanguage)
     this.glossaryUI.show()
+    if (this.targetLanguage) this.wristCloud?.show(this.targetLanguage)
     if (this.learningMode === "SCAN") {
       this.quizActive = false
       this.quizUI.hide()
@@ -569,6 +573,7 @@ export class LingoSpaceMain extends BaseScriptComponent {
   }
 
   private completeQuizRound(): void {
+    this.wristCloud?.hide()
     this.quizActive = false
     this.quizUI.hide()
     this.currentCard = null
@@ -1366,6 +1371,7 @@ export class LingoSpaceMain extends BaseScriptComponent {
 
   private teardownToMenu(): void {
     this.audio.playClick()
+    this.wristCloud?.hide()
     this.voicePracticeActive = false
     this.setMicDucking(false)
     this.voiceFinalizeEvent.cancel()
@@ -1392,6 +1398,7 @@ export class LingoSpaceMain extends BaseScriptComponent {
     this.talkUI.hide()
     this.catcher.stop()
     this.glossaryUI.hide()
+    this.wristCloud?.hide()
     this.completionUI.hide()
     this.boardUI.hide()
     this.languagePicker.hide()
@@ -1407,6 +1414,7 @@ export class LingoSpaceMain extends BaseScriptComponent {
   private whisperMode = false
   private nightMode: LingoSpaceNightMode | null = null
   private brightness: LingoSpaceBrightness | null = null
+  private wristCloud: LingoSpaceWristCloud | null = null
   private tutorial: LingoSpaceTutorial | null = null
 
   private tutorialShownThisSession = false
@@ -1532,6 +1540,7 @@ export class LingoSpaceMain extends BaseScriptComponent {
   /** Live Talk: SPEAK = guided speaking practice, AI = free conversation. Both start at the scene picker. */
   private openLiveTalk(partner: string): void {
     this.audio.playClick()
+    this.wristCloud?.hide()
     if (!this.nativeLanguage || !this.targetLanguage) return
     this.menuUI.hide()
     this.talkActive = true
@@ -1986,6 +1995,14 @@ export class LingoSpaceMain extends BaseScriptComponent {
   }
 
   /** BACK from a section: languages stay chosen, land on the mode choice. */
+  /** Right-wrist cloud: leave the scan / quiz and land on the Live Talk choice page. */
+  private openLiveTalkFromWrist(): void {
+    this.teardownToMenu()
+    this.menuUI.jumpToLiveTalkStep()
+    this.menuUI.show()
+    this.fx.popIn(this.menuUI.sceneObject, {rotateDegrees: -8})
+  }
+
   private returnToModeSelection(): void {
     this.teardownToMenu()
     this.menuUI.jumpToModeStep()

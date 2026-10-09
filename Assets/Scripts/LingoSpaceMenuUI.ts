@@ -262,6 +262,16 @@ export class LingoSpaceMenuUI extends BaseScriptComponent {
 
   /** BACK from a section lands here: mode choice with languages kept — the
    * flow's own back buttons still reach the language steps when wanted. */
+  /** Straight to the Live Talk choice page (from the right-wrist cloud). */
+  jumpToLiveTalkStep(): void {
+    this.navigationLocked = false
+    if (!this.nativeLanguage || !this.targetLanguage) {
+      this.resetFlow()
+      return
+    }
+    this.showLiveTalkStep()
+  }
+
   jumpToModeStep(): void {
     this.navigationLocked = false
     if (!this.nativeLanguage || !this.targetLanguage) {
