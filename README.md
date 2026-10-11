@@ -8,6 +8,12 @@ Built for the [CLAD Summer Hackathon](https://lenslist.co/clad-summer-hackathon)
 
 ![Lingo Specs logo](Assets/LingoDesign/LOGO.png)
 
+## 🌐 Web: follow your progress
+
+**[lingospecs.netlify.app](https://lingospecs.netlify.app)**
+
+Tap **CONNECT** in the glasses to see your code (`NUBE-XXXX-XXXX`), then type it on the website to see your progress in every language, your words, and a pronunciation report. You can also do exercises there.
+
 ## Why it fits “Guide”
 
 Week 2 asks for a spatial experience that guides people to learn, complete, or improve a real-world task. Lingo Specs guides the user through a complete language-learning loop:
