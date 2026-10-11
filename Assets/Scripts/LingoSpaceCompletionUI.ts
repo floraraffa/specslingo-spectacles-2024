@@ -16,6 +16,7 @@ import {CategoryId, LanguageId} from "./LingoSpaceData"
 import {categoryName, lingoCopy} from "./LingoSpaceLocalization"
 import {LINGO_COLORS} from "./LingoSpaceTheme"
 import {ART, ART_FLOW, artButton, artIcon, artImage, artLabel, ArtPiece, kitText} from "./LingoSpaceArtKit"
+import {LINGO_WEB_URL} from "./LingoSpaceWeb"
 
 const NEXT_ICON: Texture = requireAsset("../Icons/refresh.png") as Texture
 const LANGUAGE_ICON: Texture = requireAsset("../Icons/language.png") as Texture
@@ -29,6 +30,8 @@ export class LingoSpaceCompletionUI extends BaseScriptComponent {
   private summary!: Text
   private xpSummary!: Text
   private titleTop!: Text
+  private webCodeText!: Text
+  private webCode = ""
   private nextContent!: Text
   private setupContent!: Text
   private _onNextRound = new Event<void>()
@@ -76,6 +79,9 @@ export class LingoSpaceCompletionUI extends BaseScriptComponent {
     this.xpSummary = kitText(card, "", cardWidth * 0.8, cardHeight * 0.3, new vec3(0, -cardHeight * 0.24, 1.2), 40, new vec4(0.05, 0.48, 0.43, 1))
     this.title = this.titleTop
 
+    // The web link code (filled once Snap Cloud answers).
+    const codeSlot = this.addSlot(content, "Web Code", 35, 3.2)
+    this.webCodeText = kitText(codeSlot, "", 35, 3.2, new vec3(0, 0, 1.2), 34, new vec4(0.36, 0.16, 0.9, 1))
     this.nextContent = this.addKitButton(content, ART.longPrimary, NEXT_ICON, () => this._onNextRound.invoke())
     this.setupContent = this.addKitButton(content, ART.longDark, LANGUAGE_ICON, () => this._onChangeLanguage.invoke())
     this.hide()
@@ -84,12 +90,17 @@ export class LingoSpaceCompletionUI extends BaseScriptComponent {
   showSummary(counts: Record<string, number>, audioXp: number, textXp: number, language: LanguageId): void {
     const name = (id: CategoryId): string => categoryName(id, language)
     this.titleTop.text = lingoCopy(language, "complete")
+    this.webCodeText.text = this.webCode ? `${lingoCopy(language, "webCode")} ${LINGO_WEB_URL} · ${this.webCode}` : ""
     this.summary.text = `${name("HOME")} ${counts.HOME || 0}  ·  ${name("FOOD")} ${counts.FOOD || 0}\n${name("WORK")} ${counts.WORK || 0}  •  ${name("TRAVEL")} ${counts.TRAVEL || 0}\n${name("PEOPLE")} ${counts.PEOPLE || 0}  •  ${name("OUTSIDE")} ${counts.OUTSIDE || 0}`
     this.xpSummary.text = `${lingoCopy(language, "audioXp")} ${audioXp}  •  ${lingoCopy(language, "textXp")} ${textXp}\n${lingoCopy(language, "totalXp")} ${audioXp + textXp}`
     this.nextContent.text = lingoCopy(language, "nextWords")
     this.setupContent.text = lingoCopy(language, "changeSetup")
     this.show()
   }
+  setWebCode(code: string): void {
+    this.webCode = code
+  }
+
   show(): void { this.sceneObject.enabled = true }
   hide(): void { this.sceneObject.enabled = false }
 

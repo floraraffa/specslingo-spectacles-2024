@@ -4,7 +4,6 @@
  * worth triple, and missed words are modeled aloud and remembered for practice. */
 import {BackPlate} from "SpectaclesUIKit.lspkg/Scripts/BackPlate"
 import {RoundedRectangle} from "SpectaclesUIKit.lspkg/Scripts/Visuals/RoundedRectangle/RoundedRectangle"
-import {RoundedRectangleVisual} from "SpectaclesUIKit.lspkg/Scripts/Visuals/RoundedRectangle/RoundedRectangleVisual"
 import {IMAGE_MATERIAL_ASSET} from "SpectaclesUIKit.lspkg/Scripts/Components/Element"
 import WorldCameraFinderProvider from "SpectaclesInteractionKit.lspkg/Providers/CameraProvider/WorldCameraFinderProvider"
 import Event, {PublicApi} from "SpectaclesInteractionKit.lspkg/Utils/Event"
@@ -12,8 +11,8 @@ import {Button515 as Button} from "./compat515/Button515"
 import {afterComponentStart} from "./compat515/Timing515"
 import {hasDenseScript, LanguageId, SpeakingLevel} from "./LingoSpaceData"
 import {lingoCopy, LingoCopyKey} from "./LingoSpaceLocalization"
-import {LINGO_COLORS, LINGO_FONT, LingoTone, styleLingoButton} from "./LingoSpaceTheme"
-import {backButton} from "./LingoSpaceArtKit"
+import {LINGO_COLORS, LINGO_FONT} from "./LingoSpaceTheme"
+import {ART, artButton, artLabel, backButton, stripArrow} from "./LingoSpaceArtKit"
 import {LingoSpaceAudioController} from "./LingoSpaceAudioController"
 import {LingoFX} from "./LingoSpaceFX"
 import {deferDestroy} from "./LingoSpaceDeferredDestroy"
@@ -29,8 +28,6 @@ export function catcherStars(caught: number): number {
   return caught >= CATCHER_STAR_GOALS[1] ? 3 : caught >= CATCHER_STAR_GOALS[0] ? 2 : 1
 }
 
-const MIC_ICON = requireAsset("../Icons/mic.png") as Texture
-const BACK_ICON = requireAsset("../Icons/arrow_back.png") as Texture
 const LANGUAGE_CLOUDS: Record<LanguageId, Texture> = {
   Spanish: requireAsset("../LingoDesign/nube-es.png") as Texture,
   English: requireAsset("../LingoDesign/nube-en.png") as Texture,
@@ -58,6 +55,11 @@ const GOLD_FILL = new vec4(1, 0.95, 0.72, 0.97)
 const GOLD_BORDER = new vec4(1, 0.76, 0.2, 1)
 const OK_COLOR = new vec4(0.08, 0.56, 0.4, 1)
 const FIX_COLOR = new vec4(0.82, 0.34, 0.12, 1)
+const HUD_BUTTON_WIDTH = 15
+const HUD_BUTTON_HEIGHT = 3.8
+const HUD_BUTTON_X = 8.5
+/** Long enough for the hand ray to leave the HUD (SIK caches the colliders it pointed at). */
+const TEARDOWN_DELAY = 2
 
 type Bubble = {
   root: SceneObject
@@ -207,7 +209,8 @@ export class LingoSpaceCloudCatcher {
 
   /** Mic status while the hold is open. */
   setStatus(message: string, color: vec4 = LINGO_COLORS.ink): void {
-    if (!this.statusText) return
+    // Late mic replies can arrive after the round's HUD is gone.
+    if (!this.statusText || isNull(this.statusText)) return
     this.statusText.text = message
     this.statusText.textFill.color = color
     this.statusText.size = hasDenseScript(message) ? 40 : 32
@@ -401,7 +404,10 @@ export class LingoSpaceCloudCatcher {
     this.scoreText = this.addText(this.hud, "", 12, 2.6, 34, OK_COLOR, new vec3(13.5, 6.1, 0.6))
     this.starsText = this.addText(this.hud, "", 37, 2.6, 32, GOLD_BORDER, new vec3(0, 3.1, 0.6))
     this.statusText = this.addText(this.hud, "", 37, 2.8, 32, LINGO_COLORS.ink, new vec3(0, 0.1, 0.6))
-    const say = this.addButton(this.hud, this.copy("catcherSay"), MIC_ICON, 20, "home", new vec3(-7, -4.8, 0.8))
+    // DECIR and VOLVER: the shared kit art, same width and height side by side.
+    const sayMade = artButton(this.hud, ART.speak, HUD_BUTTON_WIDTH, "Catcher Say", new vec3(-HUD_BUTTON_X, -4.8, 0.8), HUD_BUTTON_HEIGHT)
+    artLabel(sayMade.root, ART.speak, HUD_BUTTON_WIDTH, stripArrow(this.copy("catcherSay")), 32)
+    const say = sayMade.button
     say.onTriggerDown.add(() => {
       if (!this.running || this.busy || this.flight) {
         this.audio.playSoftReturn()
@@ -413,7 +419,7 @@ export class LingoSpaceCloudCatcher {
       this._onHoldStart.invoke()
     })
     say.onTriggerUp.add(() => this.releaseHold())
-    const exit = backButton(this.hud, 15, lingoCopy(this.nativeLanguage, "back"), 32, 3.8, new vec3(11.5, -4.8, 0.8)).made.button
+    const exit = backButton(this.hud, HUD_BUTTON_WIDTH, lingoCopy(this.nativeLanguage, "back"), 32, HUD_BUTTON_HEIGHT, new vec3(HUD_BUTTON_X, -4.8, 0.8)).made.button
     exit.onTriggerUp.add(() => {
       this.audio.playClick()
       this.stop()
@@ -428,7 +434,7 @@ export class LingoSpaceCloudCatcher {
   }
 
   private refreshHud(): void {
-    if (!this.timerText) return
+    if (!this.timerText || isNull(this.timerText) || isNull(this.scoreText) || isNull(this.starsText)) return
     // Right after a catch the clock shows the bonus in green.
     const bonus = this.bonusFlash > 0 ? `  +${BONUS_SECONDS}` : ""
     this.timerText.text = `⏱ ${Math.max(0, Math.ceil(this.remaining))}${bonus}`
@@ -450,8 +456,15 @@ export class LingoSpaceCloudCatcher {
     // SIK buttons live in here: disable now, destroy later (avoids "Object is null").
     for (let i = this.root.getChildrenCount() - 1; i >= 0; i--) {
       const child = this.root.getChild(i)
-      deferDestroy(this.host, child)
+      deferDestroy(this.host, child, TEARDOWN_DELAY)
     }
+    // Nothing may touch the old round's objects again.
+    this.hud = null as unknown as SceneObject
+    this.cloud = null as unknown as SceneObject
+    this.timerText = null as unknown as Text
+    this.scoreText = null as unknown as Text
+    this.starsText = null as unknown as Text
+    this.statusText = null as unknown as Text
   }
 
   private flatForward(): vec3 {
@@ -476,25 +489,6 @@ export class LingoSpaceCloudCatcher {
 
   private copy(key: LingoCopyKey): string {
     return lingoCopy(this.nativeLanguage, key)
-  }
-
-  private addButton(parent: SceneObject, label: string, icon: Texture, width: number, tone: LingoTone, position: vec3): Button {
-    const height = 4
-    const root = this.makeObject(parent, `Catcher Button ${label}`)
-    root.getTransform().setLocalPosition(position)
-    const button = root.createComponent(Button.getTypeName()) as Button
-    button.setVariant({theme: "SnapOS3", shape: "Capsule", style: "Primary"})
-    styleLingoButton(button, tone)
-    button.size = new vec3(width, height, 1)
-    button.onInitialized.add(() => {
-      button.size = new vec3(width, height, 1)
-      const visual = button.visual as RoundedRectangleVisual
-      if (visual instanceof RoundedRectangleVisual) visual.cornerRadius = height / 2
-    })
-    this.addImage(root, icon, 1.4, 1.4, new vec3(-width / 2 + 1.6, 0, 1.35), "Catcher Button Icon")
-    const text = this.addText(root, label, width - 3.6, 2.4, 30, LINGO_COLORS.white, new vec3(0.8, 0, 1.35))
-    text.horizontalOverflow = HorizontalOverflow.Shrink
-    return button
   }
 
   private addImage(parent: SceneObject, texture: Texture, width: number, height: number, position: vec3, name: string): SceneObject {

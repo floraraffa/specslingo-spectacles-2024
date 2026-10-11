@@ -37,3 +37,8 @@ spk_debug_key.pem
 .cursor/
 .font_tmp/
 .mcp.json
+
+# Snap Cloud project credentials (public token for the shared "Cloud Messages"
+# project, whose messaging tables are still open) — keep out of the public repo.
+*.supabaseProject
+*.supabaseProject.meta

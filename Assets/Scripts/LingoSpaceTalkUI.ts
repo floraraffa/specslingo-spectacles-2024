@@ -92,7 +92,7 @@ const WHITE_GLASS = new vec4(1, 1, 1, 0.28)
 const LOADING_CAP = 0.92
 const CONTENT_WIDTH = 42
 /** Height of the panel's top edge in the head-locked root: the MOVE / FOLLOW
- * handles (centered at y 33.1) straddle it like on the menu screens. */
+ * handles (centered at y 36.6) float just above it, never over its text. */
 const PANEL_TOP_EDGE = 32.2
 const SCENE_BUTTON_HEIGHT = 6.4
 /** Spoken tries per drill sentence before moving on. */
@@ -912,19 +912,7 @@ export class LingoSpaceTalkUI {
         this.boostDense(word)
         const detail = line.phonetic ? `(${line.phonetic})  ${line.translation}` : line.translation
         this.addOverlayText(card, detail, 26, 1.9, "Caption", TRANSLATION_COLOR, new vec3(-5, y - 1.2, 1.2))
-        const speakerRoot = this.makeObject(card, `Hear ${line.text}`, new vec3(13, y, 1.3))
-        const speaker = speakerRoot.createComponent(Button.getTypeName()) as Button
-        speaker.setVariant({theme: "SnapOS3", shape: "Capsule", style: "Secondary"})
-        styleLingoButton(speaker, "card")
-        this.marshmallow(speaker, 1.8)
-        speaker.size = new vec3(5.4, 3.6, 1)
-        speaker.onInitialized.add(() => speaker.size = new vec3(5.4, 3.6, 1))
-        const icon = this.addTextureImage(speakerRoot, VOLUME_ICON, 1.8, 1.8, "Hear Icon", new vec3(0, 0, 1.35))
-        ;(icon.getComponent("Component.Image") as Image).mainMaterial.mainPass.baseColor = LINGO_COLORS.purple
-        speaker.onTriggerUp.add(() => {
-          this.audio.playClick()
-          onHearWord(line.text)
-        })
+        this.addSpeakerButton(card, new vec3(13, y, 1.3), 3.6, () => onHearWord(line.text))
       }
     }
 

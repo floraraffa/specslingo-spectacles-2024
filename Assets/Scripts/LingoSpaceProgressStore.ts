@@ -31,7 +31,19 @@ export type PersistedVocabularyCard = VocabularyCard & {
   lastPracticedAt: number
   textMastery: number
   audioMastery: number
+  /** Practice report (web "to improve" list): every attempt, not only successes. */
+  audioTries?: number
+  audioMisses?: number
+  bestScore?: number
+  lastScore?: number
+  lastHeard?: string
+  lastTip?: string
+  textTries?: number
+  textMisses?: number
 }
+
+/** One pronunciation or quiz attempt on a word. */
+export type PracticeAttempt = {kind: "AUDIO" | "TEXT", correct: boolean, score?: number, heard?: string, tip?: string}
 
 export type LingoProfileSnapshot = {
   userName: string
@@ -55,6 +67,9 @@ type PersistedSession = {
   completed: boolean
 }
 
+/** Per studied language: XP earned in it and Live Talk / Cloud Catcher stats. */
+export type LanguageStats = {audioXp: number, textXp: number, talkScenes: number, catcherBest: number, lastPracticeAt: number}
+
 type PersistedState = {
   version: 1
   userName: string
@@ -66,6 +81,8 @@ type PersistedState = {
   cards: PersistedVocabularyCard[]
   /** Placement-test result per studied language (absent = not assessed yet). */
   levels: Partial<Record<LanguageId, SpeakingLevel>>
+  /** Per-language stats (since the cloud sync); totals above stay global. */
+  languageStats: Partial<Record<LanguageId, LanguageStats>>
 }
 
 type CardMetadata = {
@@ -77,6 +94,8 @@ type CardMetadata = {
 export class LingoSpaceProgressStore {
   private state: PersistedState
   private currentSessionId: string | null = null
+  /** Called with the studied language whenever its progress changes (cloud sync). */
+  onLanguageChanged: ((language: LanguageId) => void) | null = null
 
   constructor() {
     this.state = this.load()
@@ -135,11 +154,80 @@ export class LingoSpaceProgressStore {
   setLevel(targetLanguage: LanguageId, level: SpeakingLevel): void {
     this.state.levels[targetLanguage] = level
     this.save()
+    this.touch(targetLanguage)
+  }
+
+  /** Languages with any progress: a level, stats or saved words. */
+  studiedLanguages(): LanguageId[] {
+    const seen: Partial<Record<LanguageId, boolean>> = {}
+    const result: LanguageId[] = []
+    const add = (language: LanguageId | null | undefined): void => {
+      if (!language || seen[language]) return
+      seen[language] = true
+      result.push(language)
+    }
+    for (const key in this.state.languageStats) if (isLanguageId(key)) add(key)
+    for (const key in this.state.levels) if (isLanguageId(key)) add(key)
+    for (let i = 0; i < this.state.cards.length; i++) add(this.state.cards[i].targetLanguage)
+    return result
+  }
+
+  getLanguageStats(targetLanguage: LanguageId): LanguageStats {
+    const stats = this.state.languageStats[targetLanguage]
+    return stats ? {...stats} : {audioXp: 0, textXp: 0, talkScenes: 0, catcherBest: 0, lastPracticeAt: 0}
+  }
+
+  /** Every saved word of a studied language (all native languages), newest first. */
+  getCardsForTarget(targetLanguage: LanguageId): PersistedVocabularyCard[] {
+    return this.state.cards
+      .filter((entry) => entry.targetLanguage === targetLanguage)
+      .map((entry) => ({...entry, contexts: entry.contexts.slice()}))
+  }
+
+  /** A finished Live Talk scene or speaking lesson in the studied language. */
+  recordTalkScene(targetLanguage: LanguageId): void {
+    const stats = this.statsFor(targetLanguage)
+    stats.talkScenes += 1
+    stats.lastPracticeAt = this.now()
+    this.save()
+    this.touch(targetLanguage)
+  }
+
+  /** A Cloud Catcher round: keeps the best score per language. */
+  recordCatcher(targetLanguage: LanguageId, caught: number): void {
+    const stats = this.statsFor(targetLanguage)
+    stats.catcherBest = Math.max(stats.catcherBest, Math.floor(caught))
+    stats.lastPracticeAt = this.now()
+    this.save()
+    this.touch(targetLanguage)
+  }
+
+  private statsFor(targetLanguage: LanguageId): LanguageStats {
+    let stats = this.state.languageStats[targetLanguage]
+    if (!stats) {
+      stats = {audioXp: 0, textXp: 0, talkScenes: 0, catcherBest: 0, lastPracticeAt: 0}
+      this.state.languageStats[targetLanguage] = stats
+    }
+    return stats
+  }
+
+  private touch(targetLanguage: LanguageId | null): void {
+    if (targetLanguage && this.onLanguageChanged) this.onLanguageChanged(targetLanguage)
   }
 
   recordXp(audioXp: number, textXp: number): void {
-    this.state.audioXp = Math.max(0, Math.floor(audioXp))
-    this.state.textXp = Math.max(0, Math.floor(textXp))
+    const nextAudio = Math.max(0, Math.floor(audioXp))
+    const nextText = Math.max(0, Math.floor(textXp))
+    // XP earned now counts for the language being studied.
+    const target = this.state.targetLanguage
+    if (target) {
+      const stats = this.statsFor(target)
+      stats.audioXp += Math.max(0, nextAudio - this.state.audioXp)
+      stats.textXp += Math.max(0, nextText - this.state.textXp)
+      stats.lastPracticeAt = this.now()
+    }
+    this.state.audioXp = nextAudio
+    this.state.textXp = nextText
     const session = this.currentSession()
     if (session) {
       session.audioXp = this.state.audioXp
@@ -147,6 +235,7 @@ export class LingoSpaceProgressStore {
       session.updatedAt = this.now()
     }
     this.save()
+    this.touch(target)
   }
 
   recordCard(
@@ -182,6 +271,14 @@ export class LingoSpaceProgressStore {
       lastPracticedAt: now,
       textMastery: (previous?.textMastery || 0) + (metadata.practice === "TEXT" ? 1 : 0),
       audioMastery: (previous?.audioMastery || 0) + (metadata.practice === "AUDIO" ? 1 : 0),
+      audioTries: previous?.audioTries,
+      audioMisses: previous?.audioMisses,
+      bestScore: previous?.bestScore,
+      lastScore: previous?.lastScore,
+      lastHeard: previous?.lastHeard,
+      lastTip: previous?.lastTip,
+      textTries: previous?.textTries,
+      textMisses: previous?.textMisses,
     }
     if (index >= 0) this.state.cards.splice(index, 1)
     this.state.cards.unshift(entry)
@@ -208,6 +305,37 @@ export class LingoSpaceProgressStore {
       session.updatedAt = now
     }
     this.save()
+    this.touch(targetLanguage)
+  }
+
+  /** Counts a pronunciation / quiz attempt (right or wrong) on the word, so the
+   * web can report what needs more practice. Unknown words are saved first. */
+  recordAttempt(card: VocabularyCard, nativeLanguage: LanguageId, targetLanguage: LanguageId, attempt: PracticeAttempt): void {
+    const find = () => this.state.cards.find((entry) =>
+      entry.id === card.id && entry.nativeLanguage === nativeLanguage && entry.targetLanguage === targetLanguage)
+    let entry = find()
+    if (!entry) {
+      this.recordCard(card, nativeLanguage, targetLanguage)
+      entry = find()
+      if (!entry) return
+    }
+    if (attempt.kind === "AUDIO") {
+      entry.audioTries = (entry.audioTries || 0) + 1
+      if (!attempt.correct) entry.audioMisses = (entry.audioMisses || 0) + 1
+      if (attempt.score !== undefined) {
+        const score = Math.max(0, Math.min(100, Math.round(attempt.score)))
+        entry.lastScore = score
+        entry.bestScore = Math.max(entry.bestScore || 0, score)
+      }
+      if (attempt.heard !== undefined) entry.lastHeard = attempt.heard.slice(0, 80)
+      entry.lastTip = attempt.correct ? "" : (attempt.tip || "").slice(0, 180)
+    } else {
+      entry.textTries = (entry.textTries || 0) + 1
+      if (!attempt.correct) entry.textMisses = (entry.textMisses || 0) + 1
+    }
+    entry.lastPracticedAt = this.now()
+    this.save()
+    this.touch(targetLanguage)
   }
 
   completeSession(): void {
@@ -312,6 +440,7 @@ export class LingoSpaceProgressStore {
         sessions: Array.isArray(parsed.sessions) ? parsed.sessions.slice(0, MAX_SESSIONS) as PersistedSession[] : [],
         cards: Array.isArray(parsed.cards) ? parsed.cards.slice(0, MAX_CARDS_TOTAL) as PersistedVocabularyCard[] : [],
         levels: this.loadLevels(parsed.levels),
+        languageStats: this.loadLanguageStats(parsed.languageStats),
       }
     } catch (error) {
       console.error(`LINGO SPACE could not load progress: ${error}`)
@@ -327,6 +456,25 @@ export class LingoSpaceProgressStore {
       if (isLanguageId(key) && isSpeakingLevel(entries[key])) levels[key] = entries[key] as SpeakingLevel
     }
     return levels
+  }
+
+  private loadLanguageStats(raw: unknown): Partial<Record<LanguageId, LanguageStats>> {
+    const result: Partial<Record<LanguageId, LanguageStats>> = {}
+    if (!raw || typeof raw !== "object") return result
+    const entries = raw as Record<string, Partial<LanguageStats>>
+    const num = (value: unknown): number => typeof value === "number" && isFinite(value) ? Math.max(0, value) : 0
+    for (const key in entries) {
+      const entry = entries[key]
+      if (!isLanguageId(key) || !entry || typeof entry !== "object") continue
+      result[key] = {
+        audioXp: num(entry.audioXp),
+        textXp: num(entry.textXp),
+        talkScenes: num(entry.talkScenes),
+        catcherBest: num(entry.catcherBest),
+        lastPracticeAt: num(entry.lastPracticeAt),
+      }
+    }
+    return result
   }
 
   private save(): void {
@@ -348,6 +496,7 @@ export class LingoSpaceProgressStore {
       sessions: [],
       cards: [],
       levels: {},
+      languageStats: {},
     }
   }
 

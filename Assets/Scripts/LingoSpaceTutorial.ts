@@ -1,4 +1,4 @@
-/** First-run guided tour: five Cloudy steps in the wearer's NATIVE language,
+/** First-run guided tour: Cloudy's steps in the wearer's NATIVE language,
  * spoken aloud, with SKIP TUTORIAL always one tap away. Shown right after the
  * native language is chosen, so every word of it is understandable. */
 import {Billboard} from "SpectaclesInteractionKit.lspkg/Components/Interaction/Billboard/Billboard"
@@ -36,10 +36,29 @@ const IMAGE_MODE_TEXTURE = requireAsset("../ScreenDesign/image-cards.png") as Te
 const CHAIR_TEXTURE = requireAsset("../AIImagesKawaii/chair.png") as Texture
 const CLOUD_EN_TEXTURE = requireAsset("../LingoDesign/nube-en.png") as Texture
 const CLOUD_FR_TEXTURE = requireAsset("../LingoDesign/nube-fr.png") as Texture
+const LIVE_TALK_TEXTURE = requireAsset("../ScreenDesign/live-talk.png") as Texture
+const LIVE_SPEAK_TEXTURE = requireAsset("../ScreenDesign/live-speak.png") as Texture
+const LIVE_AI_TEXTURE = requireAsset("../ScreenDesign/live-ai.png") as Texture
+const MOVE_TEXTURE = requireAsset("../ScreenDesign/talk/move-btn.png") as Texture
+const FOLLOW_TEXTURE = requireAsset("../ScreenDesign/talk/follow-btn.png") as Texture
+const BRIGHTNESS_TEXTURE = requireAsset("../ScreenDesign/brightness/toggle-sun.png") as Texture
+const CONNECT_TEXTURE = requireAsset("../ScreenDesign/scan/btn-teal-b.png") as Texture
+const LANGUAGE_CLOUDS: Record<LanguageId, Texture> = {
+  Spanish: requireAsset("../LingoDesign/nube-es.png") as Texture,
+  English: CLOUD_EN_TEXTURE,
+  German: requireAsset("../LingoDesign/nube-gr.png") as Texture,
+  French: CLOUD_FR_TEXTURE,
+  Italian: requireAsset("../LingoDesign/nube-it.png") as Texture,
+  Japanese: requireAsset("../LingoDesign/nube-jp.png") as Texture,
+}
+
+/** Bump whenever the tour changes: everyone (even "don't show again") sees the new one once. */
+export const TUTORIAL_VERSION = 2
 
 const STEP_KEYS: LingoCopyKey[] = [
   "tutorial1", "tutorialLang", "tutorialMode", "tutorial2", "tutorial3",
-  "tutorialPhrase", "tutorial4", "tutorialQuiz", "tutorialGlossary", "tutorial5",
+  "tutorialPhrase", "tutorial4", "tutorialQuiz", "tutorialTalk", "tutorialCatcher",
+  "tutorialGlossary", "tutorial5", "tutorialTop",
 ]
 
 // Sample content for the exercise simulations, in the wearer's NATIVE tongue.
@@ -233,8 +252,9 @@ export class LingoSpaceTutorial {
     }
     // 3 — pick your mode: the REAL menu mode buttons, same artwork.
     const mode = this.makeObject(root, "Demo Mode", new vec3(0, DEMO_Y, 0.8))
-    this.addImage(mode, SCAN_MODE_TEXTURE, new vec2(16.6, 4.95), new vec3(0, 2.75, 0), ORDER.mascot)
-    this.addImage(mode, IMAGE_MODE_TEXTURE, new vec2(16.6, 4.95), new vec3(0, -2.55, 0), ORDER.mascot)
+    this.addImage(mode, IMAGE_MODE_TEXTURE, new vec2(13.4, 4), new vec3(0, 3.4, 0), ORDER.mascot)
+    this.addImage(mode, SCAN_MODE_TEXTURE, new vec2(13.4, 4), new vec3(0, 0, 0), ORDER.mascot)
+    this.addImage(mode, LIVE_TALK_TEXTURE, new vec2(13.4, 4), new vec3(0, -3.4, 0), ORDER.mascot)
     // 4 — the SCAN button and, as its result, a little card appearing.
     const scan = this.makeObject(root, "Demo Scan", new vec3(0, DEMO_Y, 0.8))
     this.addImage(scan, PILL_TEXTURE, new vec2(17, 4.7), new vec3(0, 3, 0), ORDER.mascot, new vec4(0.61, 0.42, 1, 1))
@@ -288,6 +308,22 @@ export class LingoSpaceTutorial {
     this.addText(quiz, words.wrong, 11, 2.2, 32, LINGO_COLORS.ink, new vec3(4.4, 0.5, 0.6), ORDER.buttonText)
     this.addImage(quiz, PILL_TEXTURE, new vec2(12.8, 3.5), new vec3(4.4, -3.5, 0), ORDER.mascot, new vec4(0.06, 0.5, 0.38, 1))
     this.addText(quiz, `✓ ${words.right}`, 11, 2.2, 32, LINGO_COLORS.white, new vec3(4.4, -3.5, 0.6), ORDER.buttonText)
+    // Live Talk: its two real entry buttons.
+    const talk = this.makeObject(root, "Demo Talk", new vec3(0, DEMO_Y, 0.8))
+    this.addImage(talk, LIVE_SPEAK_TEXTURE, new vec2(15, 4.48), new vec3(0, 2.2, 0), ORDER.mascot)
+    this.addImage(talk, LIVE_AI_TEXTURE, new vec2(15, 4.48), new vec3(0, -2.2, 0), ORDER.mascot)
+    // Cloud Catcher: the warm game button with clouds to catch around it.
+    const catcher = this.makeObject(root, "Demo Catcher", new vec3(0, DEMO_Y, 0.8))
+    this.addImage(catcher, PILL_WIDE_TEXTURE, new vec2(19, 4.4), new vec3(0, -2.4, 0), ORDER.mascot, new vec4(1, 0.55, 0.2, 1))
+    this.addText(catcher, "▶  CLOUD CATCHER", 17, 2.4, 32, LINGO_COLORS.white, new vec3(0, -2.4, 0.6), ORDER.buttonText)
+    const catchClouds: {texture: Texture, x: number, y: number}[] = [
+      {texture: CLOUD_EN_TEXTURE, x: -7, y: 2.4},
+      {texture: LANGUAGE_CLOUDS[this.language], x: 0, y: 3.1},
+      {texture: CLOUD_FR_TEXTURE, x: 7, y: 2.4},
+    ]
+    for (let i = 0; i < catchClouds.length; i++) {
+      this.addImage(catcher, catchClouds[i].texture, new vec2(4.6, 4.6), new vec3(catchClouds[i].x, catchClouds[i].y, 0), ORDER.mascot)
+    }
     // 9 — the glossary: the book plus one real-looking row (art, word, voice).
     const gloss = this.makeObject(root, "Demo Glossary", new vec3(0, DEMO_Y, 0.8))
     this.addImage(gloss, BOOK_TEXTURE, new vec2(6.2, 6.2), new vec3(-11, 0.2, 0), ORDER.mascot)
@@ -298,7 +334,7 @@ export class LingoSpaceTutorial {
     this.addImage(gloss, VOLUME_TEXTURE, new vec2(2, 2), new vec3(9.2, 0.2, 1), ORDER.buttonText)
     // 10 — the four wrist chips, each labeled: book, music, language, night.
     const wrist = this.makeObject(root, "Demo Wrist", new vec3(0, DEMO_Y, 0.8))
-    const chipXs = [-7.2, -2.4, 2.4, 7.2]
+    const chipXs = [-12, -7.2, -2.4, 2.4]
     const chipTints = [
       new vec4(1, 1, 1, 1),
       new vec4(1, 1, 1, 1),
@@ -313,7 +349,23 @@ export class LingoSpaceTutorial {
       this.addImage(wrist, chipIcons[i], new vec2(chipIconSizes[i], chipIconSizes[i]), new vec3(chipXs[i], 1.6, 0.6), ORDER.text)
       this.addText(wrist, lingoCopy(this.language, chipLabels[i]), 4.6, 1.6, 22, LINGO_COLORS.ink, new vec3(chipXs[i], -1.6, 0.6), ORDER.buttonText)
     }
-    this.demoGroups = [welcome, lang, mode, scan, card, phrase, games, quiz, gloss, wrist]
+    // The right palm: the studied language's cloud, the shortcut to Live Talk.
+    this.addImage(wrist, LANGUAGE_CLOUDS[this.language], new vec2(4.2, 4.2), new vec3(12, 1.6, 0.6), ORDER.text)
+    this.addText(wrist, lingoCopy(this.language, "liveTalk"), 6, 1.6, 18, LINGO_COLORS.ink, new vec3(12, -1.6, 0.6), ORDER.buttonText)
+    // The handles above the panel: MOVE, FOLLOW, sun / moon, CONNECT.
+    const top = this.makeObject(root, "Demo Top", new vec3(0, DEMO_Y, 0.8))
+    const handles: {texture: Texture, width: number, height: number, x: number, label: string, labelX: number}[] = [
+      {texture: CONNECT_TEXTURE, width: 8.4, height: 2.7, x: -11.4, label: lingoCopy(this.language, "webConnect"), labelX: 0},
+      {texture: MOVE_TEXTURE, width: 8.4, height: 2.65, x: -2.6, label: lingoCopy(this.language, "spatialMove"), labelX: 1},
+      {texture: FOLLOW_TEXTURE, width: 8.4, height: 2.75, x: 6.2, label: lingoCopy(this.language, "spatialFollow"), labelX: 1},
+      {texture: BRIGHTNESS_TEXTURE, width: 4.8, height: 2.7, x: 13.6, label: "", labelX: 0},
+    ]
+    for (let i = 0; i < handles.length; i++) {
+      const handle = handles[i]
+      this.addImage(top, handle.texture, new vec2(handle.width, handle.height), new vec3(handle.x, 1, 0), ORDER.mascot)
+      if (handle.label) this.addText(top, handle.label, handle.width * 0.6, 1.6, 18, LINGO_COLORS.white, new vec3(handle.x + handle.labelX, 1, 0.6), ORDER.buttonText)
+    }
+    this.demoGroups = [welcome, lang, mode, scan, card, phrase, games, quiz, talk, catcher, gloss, wrist, top]
     for (let i = 0; i < this.demoGroups.length; i++) this.demoGroups[i].enabled = false
   }
 

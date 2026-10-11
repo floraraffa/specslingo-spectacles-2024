@@ -8,7 +8,9 @@ import {LingoSpaceLanguagePicker} from "./LingoSpaceLanguagePicker"
 import {LingoSpaceNightMode} from "./LingoSpaceNightMode"
 import {LingoSpaceBrightness} from "./LingoSpaceBrightness"
 import {LingoSpaceWristCloud} from "./LingoSpaceWristCloud"
-import {LingoSpaceTutorial} from "./LingoSpaceTutorial"
+import {LingoSpaceCloudSync} from "./LingoSpaceCloudSync"
+import {LingoSpaceWebConnect} from "./LingoSpaceWebConnect"
+import {LingoSpaceTutorial, TUTORIAL_VERSION} from "./LingoSpaceTutorial"
 import {LingoSpaceTalkUI} from "./LingoSpaceTalkUI"
 import {LingoSpaceTalkService, PlacementAnswer, TalkLine, TalkScene} from "./LingoSpaceTalkService"
 import {CATCHER_STAR_GOALS, catcherStars, CatcherResult, CatcherWord, LingoSpaceCloudCatcher} from "./LingoSpaceCloudCatcher"
@@ -114,6 +116,8 @@ export class LingoSpaceMain extends BaseScriptComponent {
   private audio!: LingoSpaceAudioController
   private ai!: LingoSpaceAIService
   private progress!: LingoSpaceProgressStore
+  /** Snap Cloud: per-language progress, Bitmoji and the web link code. */
+  private cloud!: LingoSpaceCloudSync
   private quizUI!: LingoSpaceQuizUI
   private glossaryUI!: LingoSpaceGlossaryUI
   private languagePicker!: LingoSpaceLanguagePicker
@@ -166,6 +170,7 @@ export class LingoSpaceMain extends BaseScriptComponent {
     this.buildSpatialGrabControls()
     this.camera = new LingoSpaceCameraService(this)
     this.progress = new LingoSpaceProgressStore()
+    this.cloud = new LingoSpaceCloudSync(this, this.progress, (label) => this.progress.getArtwork(label))
     this.audio = new LingoSpaceAudioController(this.sceneObject)
     this.ai = new LingoSpaceAIService(this.sceneObject)
     // Background music dips while the AI voice talks, mirroring the mic ducking.
@@ -240,9 +245,11 @@ export class LingoSpaceMain extends BaseScriptComponent {
   }
 
   private buildSpatialGrabControls(): void {
+    // CONNECT · MOVE · FOLLOW · sun/moon sit above the panel's tallest content.
+    const TOP_BAR_Y = 36.6
     const moveRoot = global.scene.createSceneObject("Move Spatial Panel")
     moveRoot.setParent(this.sceneObject)
-    moveRoot.getTransform().setLocalPosition(new vec3(-5.7, 33.1, 5))
+    moveRoot.getTransform().setLocalPosition(new vec3(-5.7, TOP_BAR_Y, 5))
     this.spatialMoveContent = this.buildArtHandle(moveRoot, MOVE_HANDLE_ART, 12.6, lingoCopy("English", "spatialMove"))
 
     const manipulation = moveRoot.createComponent(InteractableManipulation.getTypeName()) as InteractableManipulation
@@ -256,13 +263,16 @@ export class LingoSpaceMain extends BaseScriptComponent {
 
     const recenterRoot = global.scene.createSceneObject("Follow Me Again")
     recenterRoot.setParent(this.sceneObject)
-    recenterRoot.getTransform().setLocalPosition(new vec3(7.1, 33.1, 5))
+    recenterRoot.getTransform().setLocalPosition(new vec3(7.1, TOP_BAR_Y, 5))
     this.spatialRecenterContent = this.buildArtHandle(recenterRoot, FOLLOW_HANDLE_ART, 12.2, lingoCopy("English", "spatialFollow"))
     this.spatialRecenterButton = recenterRoot.getComponent(Button.getTypeName()) as Button
 
     // Sun / moon brightness toggle, right of FOLLOW: full brightness at start, half at night.
-    this.brightness = new LingoSpaceBrightness(this, this.sceneObject, new vec3(18.4, 33.1, 5))
+    this.brightness = new LingoSpaceBrightness(this, this.sceneObject, new vec3(18.4, TOP_BAR_Y, 5))
     const brightnessRoot = this.brightness.toggleRoot
+    // CONNECT, left of MOVE: built with the other handles (same moment, same draw order).
+    this.webConnect = new LingoSpaceWebConnect(this, this.sceneObject, () => this.audio, new vec3(-19.4, TOP_BAR_Y, 5))
+    const webConnectRoot = this.webConnect.buttonRoot
 
     // MOVER/SEGUIR must never vanish behind a container: HUD backgrounds draw
     // at order 6-8 and their content up to 18, so the grab handles get 26-28.
@@ -274,9 +284,25 @@ export class LingoSpaceMain extends BaseScriptComponent {
         if (!isNull(moveRoot)) this.raiseGrabControlOrders(moveRoot)
         if (!isNull(recenterRoot)) this.raiseGrabControlOrders(recenterRoot)
         if (!isNull(brightnessRoot)) this.raiseGrabControlOrders(brightnessRoot)
+        if (!isNull(webConnectRoot)) this.raiseGrabControlOrders(webConnectRoot)
       })
       delayed.reset(orderDelays[i])
     }
+    // TEMP diagnostics (CONNECT not visible on device): state of the button after boot.
+    const connectProbe = this.createEvent("DelayedCallbackEvent")
+    connectProbe.bind(() => {
+      if (isNull(webConnectRoot)) return
+      const images: string[] = []
+      const walk = (object: SceneObject): void => {
+        const visuals = object.getComponents("Component.BaseMeshVisual") as BaseMeshVisual[]
+        for (let i = 0; i < visuals.length; i++) images.push(`${object.name}:${visuals[i].getTypeName().replace("Component.", "")}@${visuals[i].getRenderOrder()}${visuals[i].enabled ? "" : "(off)"}`)
+        for (let i = 0; i < object.getChildrenCount(); i++) walk(object.getChild(i))
+      }
+      walk(webConnectRoot)
+      const t = webConnectRoot.getTransform()
+      print(`[LINGO CONNECT] enabled=${webConnectRoot.isEnabledInHierarchy} local=${t.getLocalPosition()} scale=${t.getWorldScale()} visuals=${images.join(" | ")}`)
+    })
+    connectProbe.reset(4)
   }
 
   /** Puts every visual of a grab handle above the HUD containers. */
@@ -301,8 +327,15 @@ export class LingoSpaceMain extends BaseScriptComponent {
     this.spatialRecenterButton?.onTriggerUp.add(() => this.recenterPanel())
     this.audio.initializeForSpecs(this.backgroundMusic, this.backgroundMusicVolume)
     this.ai.initialize()
+    this.cloud.onCode((code) => {
+      this.menuUI.setWebCode(code)
+      this.completionUI.setWebCode(code)
+      this.webConnect?.setCode(code)
+    })
+    this.cloud.start()
     const profile = this.progress.getProfile()
     this.nativeLanguage = profile.nativeLanguage
+    if (this.nativeLanguage) this.webConnect?.setLanguage(this.nativeLanguage)
     this.targetLanguage = profile.targetLanguage
     if (this.nativeLanguage && this.spatialMoveContent) this.spatialMoveContent.text = `${lingoCopy(this.nativeLanguage, "spatialMove")}`
     if (this.nativeLanguage && this.spatialRecenterContent) this.spatialRecenterContent.text = `${lingoCopy(this.nativeLanguage, "spatialFollow")}`
@@ -317,6 +350,7 @@ export class LingoSpaceMain extends BaseScriptComponent {
     this.menuUI.onNativeLanguageSelected.add((value) => {
       if (isLanguageId(value)) {
         this.nativeLanguage = value
+        this.webConnect?.setLanguage(value)
         if (this.spatialMoveContent) this.spatialMoveContent.text = `${lingoCopy(value, "spatialMove")}`
         if (this.spatialRecenterContent) this.spatialRecenterContent.text = `${lingoCopy(value, "spatialFollow")}`
         this.targetLanguage = null
@@ -556,6 +590,7 @@ export class LingoSpaceMain extends BaseScriptComponent {
     const entry = this.quizUI.currentCard()
     if (!entry) return
     this.currentCard = entry.card
+    this.progress.recordAttempt(entry.card, this.nativeLanguage!, this.targetLanguage!, {kind: "TEXT", correct})
     if (!correct) return
     this.textXp += 5
     this.progress.recordCard(entry.card, this.nativeLanguage!, this.targetLanguage!, {practice: "TEXT"})
@@ -1333,6 +1368,9 @@ export class LingoSpaceMain extends BaseScriptComponent {
             const message = assessment.correct
               ? `✓ ${copy.correct} · ${score}%`
               : `↻ ${copy.retry} · ${score}%\n${copy.tip} · ${shortFeedback}`
+            this.progress.recordAttempt(card, this.nativeLanguage!, this.targetLanguage!, {
+              kind: "AUDIO", correct: assessment.correct, score, heard, tip: assessment.feedback,
+            })
             if (assessment.correct && this.practicedCardIds.indexOf(card.id) < 0) {
               this.audioXp += 10
               this.practicedCardIds.push(card.id)
@@ -1415,11 +1453,16 @@ export class LingoSpaceMain extends BaseScriptComponent {
   private nightMode: LingoSpaceNightMode | null = null
   private brightness: LingoSpaceBrightness | null = null
   private wristCloud: LingoSpaceWristCloud | null = null
+  /** CONNECT button (left of MOVE) and its web-code pop-up. */
+  private webConnect: LingoSpaceWebConnect | null = null
   private tutorial: LingoSpaceTutorial | null = null
 
   private tutorialShownThisSession = false
   private tutorialHidMenu = false
-  private static readonly TUTORIAL_DISMISSED_KEY = "lingo.tutorialDismissed.v1"
+  /** Holds the tutorial version the wearer chose "don't show again" for: a newer
+   * TUTORIAL_VERSION shows the updated tour once to everyone (the old bool key
+   * "lingo.tutorialDismissed.v1" is simply no longer read). */
+  private static readonly TUTORIAL_DISMISSED_VERSION_KEY = "lingo.tutorialDismissedVersion"
 
   private ensureTutorialBuilt(): LingoSpaceTutorial {
     if (!this.tutorial) {
@@ -1441,7 +1484,7 @@ export class LingoSpaceMain extends BaseScriptComponent {
           // The USER retires the tour — never us. The "?" wrist chip can
           // always bring it back on demand.
           try {
-            global.persistentStorageSystem.store.putBool(LingoSpaceMain.TUTORIAL_DISMISSED_KEY, true)
+            global.persistentStorageSystem.store.putInt(LingoSpaceMain.TUTORIAL_DISMISSED_VERSION_KEY, TUTORIAL_VERSION)
           } catch (error) {}
         },
       )
@@ -1455,7 +1498,7 @@ export class LingoSpaceMain extends BaseScriptComponent {
   private maybeStartTutorial(native: LanguageId): void {
     if (this.tutorialShownThisSession) return
     try {
-      if (global.persistentStorageSystem.store.getBool(LingoSpaceMain.TUTORIAL_DISMISSED_KEY)) return
+      if (global.persistentStorageSystem.store.getInt(LingoSpaceMain.TUTORIAL_DISMISSED_VERSION_KEY) >= TUTORIAL_VERSION) return
     } catch (error) {}
     this.tutorialShownThisSession = true
     this.tutorialHidMenu = true
@@ -1591,6 +1634,7 @@ export class LingoSpaceMain extends BaseScriptComponent {
 
   private showCatcherResults(result: CatcherResult): void {
     if (!this.nativeLanguage || !this.targetLanguage) return
+    this.progress.recordCatcher(this.targetLanguage, result.caught)
     const xp = Math.round(result.score / 2)
     if (xp > 0) {
       this.audioXp += xp
@@ -1749,6 +1793,7 @@ export class LingoSpaceMain extends BaseScriptComponent {
   }
 
   private finishDrill(correct: number, total: number, xp: number, items: {line: TalkLine}[]): void {
+    if (this.targetLanguage) this.progress.recordTalkScene(this.targetLanguage)
     const score = lingoCopy(this.nativeLanguage, "drillScore").replace("{count}", String(correct)).replace("{total}", String(total))
     const praise = score
     const ratio = total > 0 ? correct / total : 0
@@ -1986,6 +2031,7 @@ export class LingoSpaceMain extends BaseScriptComponent {
     this.talk.summarize()
       .then((summary) => {
         if (generation !== this.talkUI.currentGeneration()) return
+        if (this.targetLanguage) this.progress.recordTalkScene(this.targetLanguage)
         this.talkUI.showSummary(summary, () => this.talkUI.showScenePicker(), () => this.returnToModeSelection(), (text) => this.speakModelSentence(text))
       })
       .catch((error) => {

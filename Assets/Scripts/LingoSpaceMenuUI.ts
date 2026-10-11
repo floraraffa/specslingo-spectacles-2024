@@ -14,6 +14,7 @@ import {LanguageId, LearningMode, SUPPORTED_LANGUAGES} from "./LingoSpaceData"
 import {languageName, lingoCopy} from "./LingoSpaceLocalization"
 import {LINGO_COLORS, LINGO_FONT, LingoTone, styleLingoButton} from "./LingoSpaceTheme"
 import {ART, ART_FLOW, artButton, artIcon, artImage, artLabel, ArtPiece, kitText, stripArrow} from "./LingoSpaceArtKit"
+import {LINGO_WEB_URL} from "./LingoSpaceWeb"
 import {LingoFX} from "./LingoSpaceFX"
 import {deferDestroy} from "./LingoSpaceDeferredDestroy"
 
@@ -262,6 +263,26 @@ export class LingoSpaceMenuUI extends BaseScriptComponent {
 
   /** BACK from a section lands here: mode choice with languages kept — the
    * flow's own back buttons still reach the language steps when wanted. */
+  private webCode = ""
+  /** Code lines on the page showing now: filled the moment the code arrives. */
+  private webCodeTexts: Text[] = []
+  private webCodeOnlyTexts: Text[] = []
+
+  /** The web link code (from Snap Cloud), shown on the mode and ready steps. */
+  setWebCode(code: string): void {
+    this.webCode = code
+    this.webCodeTexts = this.webCodeTexts.filter((text) => !isNull(text))
+    for (let i = 0; i < this.webCodeTexts.length; i++) this.webCodeTexts[i].text = this.webCodeLine()
+    this.webCodeOnlyTexts = this.webCodeOnlyTexts.filter((text) => !isNull(text))
+    for (let i = 0; i < this.webCodeOnlyTexts.length; i++) this.webCodeOnlyTexts[i].text = code
+  }
+
+  private webCodeLine(): string {
+    return `${lingoCopy(this.nativeLanguage, "webCode")} ${LINGO_WEB_URL}  ·  ${this.webCode || "NUBE-····-····"}`
+  }
+
+
+
   /** Straight to the Live Talk choice page (from the right-wrist cloud). */
   jumpToLiveTalkStep(): void {
     this.navigationLocked = false
@@ -646,6 +667,17 @@ export class LingoSpaceMenuUI extends BaseScriptComponent {
       if (this.nativeLanguage && this.targetLanguage && this.learningMode) this._onStart.invoke()
     })
     this.addKitButton(page, ART.back, 25, lingoCopy(native, "back"), 42, () => this.showModeStep())
+    // The web link code: type it once on the website to see your progress there.
+    {
+      const codeWidth = 34
+      const codeHeight = codeWidth * ART.cloudPill.aspect
+      const codePill = this.makeObject(page, "Ready Web Code")
+      this.addFlowSlot(page, codePill, codeWidth, codeHeight)
+      artImage(codePill, ART.cloudPill, codeWidth, new vec3(0, 0, 0.4), "Ready Web Code Art")
+      kitText(codePill, `${lingoCopy(native, "webCode")}  ${LINGO_WEB_URL}`, codeWidth * 0.86, 1.9, new vec3(0, codeHeight * 0.17, 1.2), 30, LINGO_COLORS.ink, false)
+      const codeText = kitText(codePill, this.webCode || "NUBE-····-····", codeWidth * 0.8, 2.4, new vec3(0, -codeHeight * 0.2, 1.2), 44, LINGO_COLORS.purple)
+      this.webCodeOnlyTexts.push(codeText)
+    }
   }
 
   /** Registers an absolutely-drawn piece in a flex column. */

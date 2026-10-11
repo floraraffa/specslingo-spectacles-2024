@@ -19,6 +19,7 @@ export type LingoCopyKey =
   | "tutorial1" | "tutorial2" | "tutorial3" | "tutorial4" | "tutorial5"
   | "tutorialMode" | "tutorialQuiz" | "tutorialLang" | "tutorialPhrase" | "tutorialGlossary"
   | "tutorialChipMusic" | "tutorialChipLang" | "tutorialChipNight" | "tutorialDontShow"
+  | "tutorialTalk" | "tutorialCatcher" | "tutorialTop"
   | "tutorialNext" | "tutorialSkip" | "tutorialDone"
   | "liveTalk" | "liveTalkHint" | "liveTalkPrompt" | "liveTalkAI" | "liveTalkAIHint" | "liveTalkHuman" | "liveTalkHumanHint"
   | "talkPickScene" | "sceneCafe" | "sceneCafeHint" | "sceneAirport" | "sceneAirportHint" | "sceneFriend" | "sceneFriendHint" | "sceneRoom" | "sceneRoomHint" | "talkMission" | "talkYou" | "talkEnd" | "talkSummary" | "talkPerfect" | "talkBetter" | "talkThinking" | "talkNewScene" | "talkDone" | "talkFailed" | "talkRoomEmpty"
@@ -26,6 +27,7 @@ export type LingoCopyKey =
   | "humanTheySay" | "humanReplies" | "humanSayIt" | "humanEcho"
   | "drillSentence" | "drillYourWords" | "talkHint" | "talkSuggestTitle"
   | "levelTitle" | "levelAsk" | "levelNone" | "levelSome" | "levelGetBy" | "levelGood" | "levelAnswer" | "levelDontKnow" | "levelYour" | "levelContinue" | "levelChange" | "levelHint" | "levelA0" | "levelA1" | "levelA2" | "levelB1" | "levelB2"
+  | "webCode" | "webConnect" | "webTitle" | "webStep1" | "webStep2" | "webWaiting" | "webDone"
   | "catcherSay" | "catcherResult" | "catcherPractice" | "catcherPlayAgain" | "catcherEntry" | "catcherBadge" | "talkHoldOrListen" | "catcherGoal" | "catcherToNext" | "catcherMissing" | "catcherDone" | "gameScore" | "gameStreak" | "gameCorrect" | "gameToPractice" | "drillSayStep" | "drillSay" | "drillFinal" | "drillFinalStep" | "drillPreparing" | "drillScore" | "talkSubtitles" | "humanMyTurn" | "humanGood"
 
 const COPY: Record<LanguageId, Record<LingoCopyKey, string>> = {
@@ -56,13 +58,14 @@ const COPY: Record<LanguageId, Record<LingoCopyKey, string>> = {
     tutorial2: "Toca ESCANEAR y mira tu habitación: las tarjetas con palabras se pegan a tus objetos reales.",
     tutorial3: "Toca una tarjeta para escucharla. Mantén presionado HABLAR y pronuncia: te corrijo al instante.",
     tutorial4: "En PRACTICAR repasas tus palabras con juegos, y en CAZA DE PALABRAS buscas objetos por la casa.",
-    tutorial5: "Abre la palma: libro = glosario, música, bandera = cambiar idioma y luna = modo noche. ¡A jugar!",
-    tutorialMode: "Luego eliges el modo: ESCANEAR convierte tus objetos reales en tarjetas con arte de IA; el QUIZ repasa el vocabulario que vas escaneando día a día.",
+    tutorial5: "Girá la palma izquierda: libro = glosario, música, bandera = idioma y luna = modo noche. En la derecha, la nube de tu idioma te lleva a Charla en vivo.",
+    tutorialMode: "Después elegís cómo aprender: QUIZ PRACTICE repasa vocabulario, SCAN MY WORLD convierte tus objetos en tarjetas y LIVE TALK te hace hablar.",
     tutorialQuiz: "En el quiz eliges la respuesta correcta, la escuchas y la pronuncias. ¡Cada acierto suma XP!",
     tutorialLang: "Elige tu idioma y el que quieres aprender. Después puedes cambiarlo con la bandera de tu muñeca.",
     tutorialPhrase: "Cada tarjeta trae una frase útil desordenada: toca las palabras en orden para formarla.",
     tutorialGlossary: "El libro guarda tu glosario: cada palabra con su arte, su pronunciación y su voz.",
     tutorialChipMusic: "MÚSICA", tutorialChipLang: "IDIOMA", tutorialChipNight: "NOCHE",
+    tutorialTalk: "En CHARLA EN VIVO aprendés a hablar: SPEAKING PRACTICE te hace repetir frases y te corrige con la voz; AI PRACTICE es una charla libre. Antes, una prueba de nivel.", tutorialCatcher: "CLOUD CATCHER es un juego de 60 segundos: atrapá las nubes diciendo sus palabras. ¡Cada acierto suma tiempo!", tutorialTop: "Arriba: MOVER y SEGUIR ubican el panel, el sol y la luna bajan el brillo, y CONECTAR te da tu código para ver tu progreso en la web.",
     tutorialDontShow: "NO MOSTRAR MÁS", tutorialNext: "SIGUIENTE ▸", tutorialSkip: "SALTAR TUTORIAL", tutorialDone: "¡A JUGAR!",
     liveTalk: "CHARLA EN VIVO", liveTalkHint: "Practica un diálogo real", liveTalkPrompt: "¿Con quién quieres\nconversar hoy? ✦", liveTalkAI: "CON IA", liveTalkAIHint: "Juega un papel y te corrijo", liveTalkHuman: "CON UNA PERSONA", liveTalkHumanHint: "Te traduzco y te ayudo a responder",
     talkPickScene: "¿Dónde quieres\npracticar? ✦", sceneCafe: "CAFETERÍA", sceneCafeHint: "Pide algo para tomar", sceneAirport: "AEROPUERTO", sceneAirportHint: "Haz el check-in", sceneFriend: "NUEVA AMISTAD", sceneFriendHint: "Preséntate y conversa", sceneRoom: "MI HABITACIÓN", sceneRoomHint: "Habla de tus objetos", talkMission: "MISIÓN", talkYou: "Tú", talkEnd: "TERMINAR", talkSummary: "VER RESUMEN ★", talkPerfect: "¡Perfecto! Suena natural.", talkBetter: "Más natural:", talkThinking: "Pensando…", talkNewScene: "OTRA ESCENA", talkDone: "¡Charla completada!", talkFailed: "No pude continuar la charla. Intenta de nuevo.", talkRoomEmpty: "Escanea tu habitación primero para usar esta escena.",
@@ -71,6 +74,8 @@ const COPY: Record<LanguageId, Record<LingoCopyKey, string>> = {
     humanEcho: "LO QUE ENTENDÍ", humanMyTurn: "MI TURNO", humanGood: "✓ ¡Bien dicho!",
     drillSentence: "ORACIÓN", drillYourWords: "✦ Palabra que escaneaste:", talkHint: "¿QUÉ DIGO?", talkSuggestTitle: "Podrías decir:", drillSayStep: "👂 Escucha y mantén DECIRLA para repetir la oración completa", drillSay: "DECIRLA", drillFinal: "¡AHORA TODO EL DIÁLOGO!", drillFinalStep: "🎙 Responde de memoria: mantén DECIRLA", drillPreparing: "Preparando tu lección…", drillScore: "¡Dijiste bien {count} de {total} oraciones!", talkSubtitles: "SUBTÍTULOS",
     levelTitle: "PRUEBA DE NIVEL", levelAsk: "¿Cuánto sabes de {language}? ✦", levelNone: "NADA", levelSome: "ALGUNAS PALABRAS", levelGetBy: "ME DEFIENDO", levelGood: "BASTANTE", levelAnswer: "RESPONDER", levelDontKnow: "NO SÉ ▸", levelYour: "Tu nivel:", levelContinue: "CONTINUAR ▸", levelChange: "CAMBIAR", levelHint: "🎙 Mantén RESPONDER y contesta en voz alta", levelA0: "Principiante total", levelA1: "Principiante", levelA2: "Básico", levelB1: "Intermedio", levelB2: "Avanzado",
+    webConnect: "CONECTAR", webTitle: "¡Mirá tu progreso en la web!", webStep1: "1. Entrá a", webStep2: "2. Escribí este código:", webWaiting: "Conectando…", webDone: "LISTO",
+    webCode: "Tu progreso en la web:",
     catcherSay: "DECIR", catcherResult: "¡Atrapaste {count} palabras! Mejor racha: {streak}", catcherPractice: "Para practicar:", catcherPlayAgain: "JUGAR OTRA VEZ", catcherEntry: "¡Atrapa palabras con tu voz!", catcherBadge: "★ ¡JUEGO!", talkHoldOrListen: "Mantén para hablar o escucha la oración.", catcherGoal: "Meta: {two} palabras = ★★ · {three} = ★★★ · cada acierto ⏱+5 s", catcherToNext: "{count} para {stars}", catcherMissing: "¡Te faltaron {count} palabras para {stars}!", catcherDone: "¡Ronda completada!", gameScore: "PUNTAJE", gameStreak: "MEJOR RACHA", gameCorrect: "PALABRAS\nBIEN", gameToPractice: "PARA\nPRACTICAR",
   },
   English: {
@@ -100,13 +105,14 @@ const COPY: Record<LanguageId, Record<LingoCopyKey, string>> = {
     tutorial2: "Tap SCAN and look at your room: word cards stick right onto your real objects.",
     tutorial3: "Tap a card to hear it. Hold TALK and say the word: I correct you instantly.",
     tutorial4: "PRACTICE reviews your saved words with games, and WORD HUNT sends you hunting around the house.",
-    tutorial5: "Open your palm: book = glossary, music, flag = switch language, moon = night mode. Let's play!",
-    tutorialMode: "Then pick a mode: SCAN turns your real objects into AI-art cards; the QUIZ reviews the vocabulary you scan day by day.",
+    tutorial5: "Turn your left palm: book = glossary, music, flag = language and moon = night mode. On the right, your language's cloud takes you to Live Talk.",
+    tutorialMode: "Then choose how to learn: QUIZ PRACTICE reviews vocabulary, SCAN MY WORLD turns your objects into cards and LIVE TALK gets you speaking.",
     tutorialQuiz: "In the quiz you pick the right answer, listen to it and pronounce it. Every hit earns XP!",
     tutorialLang: "Pick your language and the one you want to learn. You can switch later with the flag on your wrist.",
     tutorialPhrase: "Every card brings a useful phrase, scrambled: tap the words in order to build it.",
     tutorialGlossary: "The book keeps your glossary: every word with its art, pronunciation and voice.",
     tutorialChipMusic: "MUSIC", tutorialChipLang: "LANGUAGE", tutorialChipNight: "NIGHT",
+    tutorialTalk: "In LIVE TALK you learn to speak: SPEAKING PRACTICE has you repeat sentences and corrects you out loud; AI PRACTICE is a free chat. First, a quick level test.", tutorialCatcher: "CLOUD CATCHER is a 60-second game: catch the clouds by saying their words. Every catch adds time!", tutorialTop: "Up top: MOVE and FOLLOW place the panel, the sun and moon dim the brightness, and CONNECT gives you your code to see your progress on the web.",
     tutorialDontShow: "DON'T SHOW AGAIN", tutorialNext: "NEXT ▸", tutorialSkip: "SKIP TUTORIAL", tutorialDone: "LET'S GO!",
     liveTalk: "LIVE TALK", liveTalkHint: "Practice a real dialogue", liveTalkPrompt: "Who do you want\nto talk with today? ✦", liveTalkAI: "WITH AI", liveTalkAIHint: "Role-play and get corrected", liveTalkHuman: "WITH A PERSON", liveTalkHumanHint: "I translate and help you reply",
     talkPickScene: "Where do you want\nto practice? ✦", sceneCafe: "CAFÉ", sceneCafeHint: "Order something to drink", sceneAirport: "AIRPORT", sceneAirportHint: "Check in for your flight", sceneFriend: "NEW FRIEND", sceneFriendHint: "Introduce yourself and chat", sceneRoom: "MY ROOM", sceneRoomHint: "Talk about your things", talkMission: "MISSION", talkYou: "You", talkEnd: "FINISH", talkSummary: "SEE SUMMARY ★", talkPerfect: "Perfect! That sounds natural.", talkBetter: "More natural:", talkThinking: "Thinking…", talkNewScene: "ANOTHER SCENE", talkDone: "Conversation complete!", talkFailed: "I couldn't continue the chat. Try again.", talkRoomEmpty: "Scan your room first to use this scene.",
@@ -115,6 +121,8 @@ const COPY: Record<LanguageId, Record<LingoCopyKey, string>> = {
     humanEcho: "WHAT I HEARD", humanMyTurn: "MY TURN", humanGood: "✓ Well said!",
     drillSentence: "SENTENCE", drillYourWords: "✦ A word you scanned:", talkHint: "WHAT DO I SAY?", talkSuggestTitle: "You could say:", drillSayStep: "👂 Listen, then hold SAY IT and repeat the whole sentence", drillSay: "SAY IT", drillFinal: "NOW THE WHOLE DIALOGUE!", drillFinalStep: "🎙 Answer from memory: hold SAY IT", drillPreparing: "Preparing your lesson…", drillScore: "You said {count} of {total} sentences right!", talkSubtitles: "SUBTITLES",
     levelTitle: "LEVEL TEST", levelAsk: "How much {language} do you know? ✦", levelNone: "NOTHING", levelSome: "A FEW WORDS", levelGetBy: "I GET BY", levelGood: "QUITE A LOT", levelAnswer: "ANSWER", levelDontKnow: "I DON'T KNOW ▸", levelYour: "Your level:", levelContinue: "CONTINUE ▸", levelChange: "CHANGE", levelHint: "🎙 Hold ANSWER and reply out loud", levelA0: "Total beginner", levelA1: "Beginner", levelA2: "Elementary", levelB1: "Intermediate", levelB2: "Advanced",
+    webConnect: "CONNECT", webTitle: "See your progress on the web!", webStep1: "1. Go to", webStep2: "2. Type this code:", webWaiting: "Connecting…", webDone: "DONE",
+    webCode: "Your progress on the web:",
     catcherSay: "SAY", catcherResult: "You caught {count} words! Best streak: {streak}", catcherPractice: "To practice:", catcherPlayAgain: "PLAY AGAIN", catcherEntry: "Catch words with your voice!", catcherBadge: "★ GAME!", talkHoldOrListen: "Hold to talk or listen to the sentence.", catcherGoal: "Goal: {two} words = ★★ · {three} = ★★★ · each hit ⏱+5 s", catcherToNext: "{count} to {stars}", catcherMissing: "Just {count} more words for {stars}!", catcherDone: "Round complete!", gameScore: "SCORE", gameStreak: "BEST STREAK", gameCorrect: "WORDS\nCORRECT", gameToPractice: "TO\nPRACTICE",
   },
   German: {
@@ -142,13 +150,14 @@ const COPY: Record<LanguageId, Record<LingoCopyKey, string>> = {
     tutorial2: "Tippe auf SCANNEN und sieh dich um: Wortkarten heften sich an deine echten Objekte.",
     tutorial3: "Tippe eine Karte an, um sie zu hören. Halte SPRECHEN gedrückt und sprich: ich korrigiere dich sofort.",
     tutorial4: "ÜBEN wiederholt deine Wörter mit Spielen, und die WORTJAGD schickt dich durchs ganze Haus.",
-    tutorial5: "Öffne die Handfläche: Buch = Glossar, Musik, Flagge = Sprache wechseln, Mond = Nachtmodus. Los geht's!",
-    tutorialMode: "Dann wählst du den Modus: SCANNEN macht aus echten Objekten KI-Karten; das QUIZ wiederholt die Vokabeln, die du Tag für Tag scannst.",
+    tutorial5: "Dreh die linke Handfläche: Buch = Glossar, Musik, Flagge = Sprache und Mond = Nachtmodus. Rechts bringt dich die Wolke deiner Sprache zum Live-Gespräch.",
+    tutorialMode: "Dann wählst du, wie du lernst: QUIZ PRACTICE wiederholt Vokabeln, SCAN MY WORLD macht deine Gegenstände zu Karten und LIVE TALK bringt dich zum Sprechen.",
     tutorialQuiz: "Im Quiz wählst du die richtige Antwort, hörst sie und sprichst sie nach. Jeder Treffer bringt XP!",
     tutorialLang: "Wähle deine Sprache und die, die du lernen willst. Später wechselst du mit der Flagge am Handgelenk.",
     tutorialPhrase: "Jede Karte bringt einen nützlichen Satz, durcheinander: tippe die Wörter in der richtigen Reihenfolge.",
     tutorialGlossary: "Das Buch ist dein Glossar: jedes Wort mit Bild, Aussprache und Stimme.",
     tutorialChipMusic: "MUSIK", tutorialChipLang: "SPRACHE", tutorialChipNight: "NACHT",
+    tutorialTalk: "Im LIVE-GESPRÄCH lernst du sprechen: SPEAKING PRACTICE lässt dich Sätze wiederholen und korrigiert dich laut; AI PRACTICE ist ein freies Gespräch. Zuerst ein kurzer Einstufungstest.", tutorialCatcher: "CLOUD CATCHER ist ein 60-Sekunden-Spiel: Fange die Wolken, indem du ihre Wörter sagst. Jeder Treffer bringt Zeit!", tutorialTop: "Oben: VERSCHIEBEN und FOLGEN platzieren das Panel, Sonne und Mond dimmen die Helligkeit, und VERBINDEN gibt dir deinen Code für deinen Fortschritt im Web.",
     tutorialDontShow: "NICHT MEHR ZEIGEN", tutorialNext: "WEITER ▸", tutorialSkip: "TUTORIAL ÜBERSPRINGEN", tutorialDone: "LOS GEHT'S!",
     liveTalk: "LIVE-GESPRÄCH", liveTalkHint: "Übe einen echten Dialog", liveTalkPrompt: "Mit wem möchtest du\nheute sprechen? ✦", liveTalkAI: "MIT KI", liveTalkAIHint: "Rollenspiel mit Korrekturen", liveTalkHuman: "MIT EINER PERSON", liveTalkHumanHint: "Ich übersetze und helfe beim Antworten",
     talkPickScene: "Wo möchtest du\nüben? ✦", sceneCafe: "CAFÉ", sceneCafeHint: "Bestell etwas zu trinken", sceneAirport: "FLUGHAFEN", sceneAirportHint: "Check für deinen Flug ein", sceneFriend: "NEUE FREUNDSCHAFT", sceneFriendHint: "Stell dich vor und plaudere", sceneRoom: "MEIN ZIMMER", sceneRoomHint: "Sprich über deine Sachen", talkMission: "MISSION", talkYou: "Du", talkEnd: "BEENDEN", talkSummary: "ZUSAMMENFASSUNG ★", talkPerfect: "Perfekt! Das klingt natürlich.", talkBetter: "Natürlicher:", talkThinking: "Ich denke nach…", talkNewScene: "ANDERE SZENE", talkDone: "Gespräch geschafft!", talkFailed: "Das Gespräch ging nicht weiter. Versuch es noch einmal.", talkRoomEmpty: "Scanne zuerst dein Zimmer für diese Szene.",
@@ -157,6 +166,8 @@ const COPY: Record<LanguageId, Record<LingoCopyKey, string>> = {
     humanEcho: "WAS ICH HÖRTE", humanMyTurn: "ICH BIN DRAN", humanGood: "✓ Gut gesagt!",
     drillSentence: "SATZ", drillYourWords: "✦ Ein Wort, das du gescannt hast:", talkHint: "WAS SAGE ICH?", talkSuggestTitle: "Du könntest sagen:", drillSayStep: "👂 Hör zu, dann halte SAG ES und wiederhole den ganzen Satz", drillSay: "SAG ES", drillFinal: "JETZT DER GANZE DIALOG!", drillFinalStep: "🎙 Antworte aus dem Kopf: halte SAG ES", drillPreparing: "Deine Lektion wird vorbereitet…", drillScore: "{count} von {total} Sätzen richtig gesagt!", talkSubtitles: "UNTERTITEL",
     levelTitle: "EINSTUFUNGSTEST", levelAsk: "Wie viel {language} kannst du? ✦", levelNone: "NICHTS", levelSome: "EIN PAAR WÖRTER", levelGetBy: "ICH KOMME ZURECHT", levelGood: "ZIEMLICH VIEL", levelAnswer: "ANTWORTEN", levelDontKnow: "WEISS NICHT ▸", levelYour: "Dein Niveau:", levelContinue: "WEITER ▸", levelChange: "ÄNDERN", levelHint: "🎙 Halte ANTWORTEN und antworte laut", levelA0: "Absoluter Anfänger", levelA1: "Anfänger", levelA2: "Grundstufe", levelB1: "Mittelstufe", levelB2: "Fortgeschritten",
+    webConnect: "VERBINDEN", webTitle: "Sieh deinen Fortschritt im Web!", webStep1: "1. Öffne", webStep2: "2. Gib diesen Code ein:", webWaiting: "Verbinde…", webDone: "FERTIG",
+    webCode: "Dein Fortschritt im Web:",
     catcherSay: "SAGEN", catcherResult: "Du hast {count} Wörter gefangen! Beste Serie: {streak}", catcherPractice: "Zum Üben:", catcherPlayAgain: "NOCHMAL SPIELEN", catcherEntry: "Fang Wörter mit deiner Stimme!", catcherBadge: "★ SPIEL!", talkHoldOrListen: "Halte zum Sprechen oder hör dir den Satz an.", catcherGoal: "Ziel: {two} Wörter = ★★ · {three} = ★★★ · jeder Treffer ⏱+5 s", catcherToNext: "noch {count} bis {stars}", catcherMissing: "Nur noch {count} Wörter bis {stars}!", catcherDone: "Runde geschafft!", gameScore: "PUNKTE", gameStreak: "BESTE SERIE", gameCorrect: "WÖRTER\nRICHTIG", gameToPractice: "ZUM\nÜBEN",
   },
   French: {
@@ -184,13 +195,14 @@ const COPY: Record<LanguageId, Record<LingoCopyKey, string>> = {
     tutorial2: "Touche SCANNER et regarde ta pièce : les cartes de mots se collent à tes vrais objets.",
     tutorial3: "Touche une carte pour l’écouter. Maintiens PARLER et prononce : je te corrige aussitôt.",
     tutorial4: "PRATIQUER révise tes mots avec des jeux, et la CHASSE AUX MOTS t’envoie explorer la maison.",
-    tutorial5: "Ouvre la paume : livre = glossaire, musique, drapeau = changer de langue, lune = mode nuit. À toi !",
-    tutorialMode: "Ensuite choisis le mode : SCANNER transforme tes objets réels en cartes IA ; le QUIZ révise le vocabulaire que tu scannes jour après jour.",
+    tutorial5: "Tourne ta paume gauche : livre = glossaire, musique, drapeau = langue et lune = mode nuit. À droite, le nuage de ta langue t'emmène à la conversation.",
+    tutorialMode: "Ensuite, choisis comment apprendre : QUIZ PRACTICE révise le vocabulaire, SCAN MY WORLD transforme tes objets en cartes et LIVE TALK te fait parler.",
     tutorialQuiz: "Dans le quiz, tu choisis la bonne réponse, tu l’écoutes et tu la prononces. Chaque réussite donne de l’XP !",
     tutorialLang: "Choisis ta langue et celle que tu veux apprendre. Tu pourras changer avec le drapeau sur ton poignet.",
     tutorialPhrase: "Chaque carte apporte une phrase utile, mélangée : touche les mots dans l’ordre pour la former.",
     tutorialGlossary: "Le livre garde ton glossaire : chaque mot avec son image, sa prononciation et sa voix.",
     tutorialChipMusic: "MUSIQUE", tutorialChipLang: "LANGUE", tutorialChipNight: "NUIT",
+    tutorialTalk: "En CONVERSATION tu apprends à parler : SPEAKING PRACTICE te fait répéter des phrases et te corrige à voix haute ; AI PRACTICE est une discussion libre. D'abord, un petit test de niveau.", tutorialCatcher: "CLOUD CATCHER est un jeu de 60 secondes : attrape les nuages en disant leurs mots. Chaque prise ajoute du temps !", tutorialTop: "En haut : DÉPLACER et SUIVRE placent le panneau, le soleil et la lune baissent la luminosité, et CONNECTER te donne ton code pour voir ta progression sur le web.",
     tutorialDontShow: "NE PLUS AFFICHER", tutorialNext: "SUIVANT ▸", tutorialSkip: "PASSER LE TUTO", tutorialDone: "C'EST PARTI !",
     liveTalk: "CONVERSATION LIVE", liveTalkHint: "Pratique un vrai dialogue", liveTalkPrompt: "Avec qui veux-tu\nparler aujourd’hui ? ✦", liveTalkAI: "AVEC L’IA", liveTalkAIHint: "Jeu de rôle et corrections", liveTalkHuman: "AVEC UNE PERSONNE", liveTalkHumanHint: "Je traduis et t’aide à répondre",
     talkPickScene: "Où veux-tu\nt’entraîner ? ✦", sceneCafe: "CAFÉ", sceneCafeHint: "Commande une boisson", sceneAirport: "AÉROPORT", sceneAirportHint: "Fais ton enregistrement", sceneFriend: "NOUVEL AMI", sceneFriendHint: "Présente-toi et discute", sceneRoom: "MA CHAMBRE", sceneRoomHint: "Parle de tes objets", talkMission: "MISSION", talkYou: "Toi", talkEnd: "TERMINER", talkSummary: "VOIR LE BILAN ★", talkPerfect: "Parfait ! C’est naturel.", talkBetter: "Plus naturel :", talkThinking: "Je réfléchis…", talkNewScene: "AUTRE SCÈNE", talkDone: "Conversation terminée !", talkFailed: "Je n’ai pas pu continuer. Réessaie.", talkRoomEmpty: "Scanne d’abord ta chambre pour cette scène.",
@@ -199,6 +211,8 @@ const COPY: Record<LanguageId, Record<LingoCopyKey, string>> = {
     humanEcho: "CE QUE J’AI COMPRIS", humanMyTurn: "À MOI", humanGood: "✓ Bien dit !",
     drillSentence: "PHRASE", drillYourWords: "✦ Un mot que tu as scanné :", talkHint: "QUE DIRE ?", talkSuggestTitle: "Tu pourrais dire :", drillSayStep: "👂 Écoute, puis maintiens DIS-LA et répète toute la phrase", drillSay: "DIS-LA", drillFinal: "MAINTENANT TOUT LE DIALOGUE !", drillFinalStep: "🎙 Réponds de mémoire : maintiens DIS-LA", drillPreparing: "Je prépare ta leçon…", drillScore: "Tu as bien dit {count} phrases sur {total} !", talkSubtitles: "SOUS-TITRES",
     levelTitle: "TEST DE NIVEAU", levelAsk: "Tu connais combien de {language} ? ✦", levelNone: "RIEN", levelSome: "QUELQUES MOTS", levelGetBy: "JE ME DÉBROUILLE", levelGood: "PAS MAL", levelAnswer: "RÉPONDRE", levelDontKnow: "JE NE SAIS PAS ▸", levelYour: "Ton niveau :", levelContinue: "CONTINUER ▸", levelChange: "CHANGER", levelHint: "🎙 Maintiens RÉPONDRE et réponds à voix haute", levelA0: "Grand débutant", levelA1: "Débutant", levelA2: "Élémentaire", levelB1: "Intermédiaire", levelB2: "Avancé",
+    webConnect: "CONNECTER", webTitle: "Vois ta progression sur le web !", webStep1: "1. Va sur", webStep2: "2. Tape ce code :", webWaiting: "Connexion…", webDone: "OK",
+    webCode: "Ta progression sur le web :",
     catcherSay: "DIRE", catcherResult: "Tu as attrapé {count} mots ! Meilleure série : {streak}", catcherPractice: "À pratiquer :", catcherPlayAgain: "REJOUER", catcherEntry: "Attrape des mots avec ta voix !", catcherBadge: "★ JEU !", talkHoldOrListen: "Maintiens pour parler ou écoute la phrase.", catcherGoal: "Objectif : {two} mots = ★★ · {three} = ★★★ · chaque réussite ⏱+5 s", catcherToNext: "{count} pour {stars}", catcherMissing: "Plus que {count} mots pour {stars} !", catcherDone: "Manche terminée !", gameScore: "SCORE", gameStreak: "MEILLEURE SÉRIE", gameCorrect: "MOTS\nJUSTES", gameToPractice: "À\nPRATIQUER",
   },
   Italian: {
@@ -227,13 +241,14 @@ const COPY: Record<LanguageId, Record<LingoCopyKey, string>> = {
     tutorial2: "Tocca SCANSIONA e guarda la stanza: le carte con le parole si attaccano ai tuoi oggetti reali.",
     tutorial3: "Tocca una carta per ascoltarla. Tieni premuto PARLA e pronuncia: ti correggo subito.",
     tutorial4: "ESERCITATI ripassa le tue parole con i giochi, e CACCIA ALLE PAROLE ti manda in giro per casa.",
-    tutorial5: "Apri il palmo: libro = glossario, musica, bandiera = cambia lingua, luna = modalità notte. Si gioca!",
-    tutorialMode: "Poi scegli la modalità: SCANSIONA trasforma i tuoi oggetti reali in carte IA; il QUIZ ripassa il vocabolario che scansioni giorno dopo giorno.",
+    tutorial5: "Gira il palmo sinistro: libro = glossario, musica, bandiera = lingua e luna = modalità notte. A destra, la nuvola della tua lingua ti porta alla conversazione.",
+    tutorialMode: "Poi scegli come imparare: QUIZ PRACTICE ripassa il vocabolario, SCAN MY WORLD trasforma i tuoi oggetti in carte e LIVE TALK ti fa parlare.",
     tutorialQuiz: "Nel quiz scegli la risposta giusta, la ascolti e la pronunci. Ogni successo vale XP!",
     tutorialLang: "Scegli la tua lingua e quella che vuoi imparare. Potrai cambiarla con la bandiera sul polso.",
     tutorialPhrase: "Ogni carta porta una frase utile, in disordine: tocca le parole nell’ordine giusto per formarla.",
     tutorialGlossary: "Il libro custodisce il tuo glossario: ogni parola con arte, pronuncia e voce.",
     tutorialChipMusic: "MUSICA", tutorialChipLang: "LINGUA", tutorialChipNight: "NOTTE",
+    tutorialTalk: "In CONVERSAZIONE impari a parlare: SPEAKING PRACTICE ti fa ripetere frasi e ti corregge a voce; AI PRACTICE è una chiacchierata libera. Prima, un breve test di livello.", tutorialCatcher: "CLOUD CATCHER è un gioco di 60 secondi: cattura le nuvole dicendo le loro parole. Ogni presa aggiunge tempo!", tutorialTop: "In alto: SPOSTA e SEGUI posizionano il pannello, il sole e la luna abbassano la luminosità, e COLLEGA ti dà il codice per vedere i tuoi progressi sul web.",
     tutorialDontShow: "NON MOSTRARE PIÙ", tutorialNext: "AVANTI ▸", tutorialSkip: "SALTA TUTORIAL", tutorialDone: "SI GIOCA!",
     liveTalk: "CHAT DAL VIVO", liveTalkHint: "Pratica un vero dialogo", liveTalkPrompt: "Con chi vuoi\nparlare oggi? ✦", liveTalkAI: "CON L’IA", liveTalkAIHint: "Gioco di ruolo e correzioni", liveTalkHuman: "CON UNA PERSONA", liveTalkHumanHint: "Traduco e ti aiuto a rispondere",
     talkPickScene: "Dove vuoi\nesercitarti? ✦", sceneCafe: "BAR", sceneCafeHint: "Ordina qualcosa da bere", sceneAirport: "AEROPORTO", sceneAirportHint: "Fai il check-in", sceneFriend: "NUOVA AMICIZIA", sceneFriendHint: "Presentati e chiacchiera", sceneRoom: "LA MIA CAMERA", sceneRoomHint: "Parla dei tuoi oggetti", talkMission: "MISSIONE", talkYou: "Tu", talkEnd: "FINE", talkSummary: "VEDI RIEPILOGO ★", talkPerfect: "Perfetto! Suona naturale.", talkBetter: "Più naturale:", talkThinking: "Sto pensando…", talkNewScene: "ALTRA SCENA", talkDone: "Conversazione completata!", talkFailed: "Non sono riuscita a continuare. Riprova.", talkRoomEmpty: "Prima scansiona la tua camera per questa scena.",
@@ -242,6 +257,8 @@ const COPY: Record<LanguageId, Record<LingoCopyKey, string>> = {
     humanEcho: "COSA HO CAPITO", humanMyTurn: "TOCCA A ME", humanGood: "✓ Ben detto!",
     drillSentence: "FRASE", drillYourWords: "✦ Una parola che hai scansionato:", talkHint: "COSA DICO?", talkSuggestTitle: "Potresti dire:", drillSayStep: "👂 Ascolta, poi tieni premuto DILLA e ripeti tutta la frase", drillSay: "DILLA", drillFinal: "ORA TUTTO IL DIALOGO!", drillFinalStep: "🎙 Rispondi a memoria: tieni premuto DILLA", drillPreparing: "Preparo la tua lezione…", drillScore: "Hai detto bene {count} frasi su {total}!", talkSubtitles: "SOTTOTITOLI",
     levelTitle: "TEST DI LIVELLO", levelAsk: "Quanto sai di {language}? ✦", levelNone: "NIENTE", levelSome: "QUALCHE PAROLA", levelGetBy: "ME LA CAVO", levelGood: "PARECCHIO", levelAnswer: "RISPONDI", levelDontKnow: "NON LO SO ▸", levelYour: "Il tuo livello:", levelContinue: "CONTINUA ▸", levelChange: "CAMBIA", levelHint: "🎙 Tieni premuto RISPONDI e rispondi ad alta voce", levelA0: "Principiante assoluto", levelA1: "Principiante", levelA2: "Elementare", levelB1: "Intermedio", levelB2: "Avanzato",
+    webConnect: "COLLEGA", webTitle: "Guarda i tuoi progressi sul web!", webStep1: "1. Vai su", webStep2: "2. Scrivi questo codice:", webWaiting: "Collegamento…", webDone: "FATTO",
+    webCode: "I tuoi progressi sul web:",
     catcherSay: "DIRE", catcherResult: "Hai preso {count} parole! Serie migliore: {streak}", catcherPractice: "Da esercitare:", catcherPlayAgain: "GIOCA ANCORA", catcherEntry: "Cattura parole con la voce!", catcherBadge: "★ GIOCO!", talkHoldOrListen: "Tieni premuto per parlare o ascolta la frase.", catcherGoal: "Obiettivo: {two} parole = ★★ · {three} = ★★★ · ogni centro ⏱+5 s", catcherToNext: "{count} per {stars}", catcherMissing: "Ti mancavano {count} parole per {stars}!", catcherDone: "Round completato!", gameScore: "PUNTEGGIO", gameStreak: "SERIE MIGLIORE", gameCorrect: "PAROLE\nGIUSTE", gameToPractice: "DA\nESERCITARE",
   },
   Japanese: {
@@ -269,13 +286,14 @@ const COPY: Record<LanguageId, Record<LingoCopyKey, string>> = {
     tutorial2: "スキャンを押して部屋を見てね。ことばのカードが本物のモノにくっつくよ。",
     tutorial3: "カードをタッチすると発音が聞けるよ。「話す」を長押しして言ってみて。すぐに直してあげる。",
     tutorial4: "「練習」はゲームで復習、「ことば探し」は家じゅうのモノを探すよ。",
-    tutorial5: "手のひらを開いてね。本＝ことば帳、音楽、旗＝言語切替、月＝ナイトモード。さあ遊ぼう！",
-    tutorialMode: "つぎはモード選び。スキャンは本物のモノをAIカードに、クイズは毎日スキャンしたことばを復習するよ。",
+    tutorial5: "左のてのひらを向けてね：本＝単語帳、音楽、旗＝言語、月＝ナイトモード。右手には学んでいる言語の雲。タップでライブトークへ。",
+    tutorialMode: "次に学び方をえらぶよ：QUIZ PRACTICE で単語の復習、SCAN MY WORLD で物をカードに、LIVE TALK で話す練習。",
     tutorialQuiz: "クイズでは正しい答えを選んで、聞いて、発音してみよう。正解するとXPがもらえるよ！",
     tutorialLang: "自分の言語と学びたい言語を選んでね。あとで手首の旗からも変えられるよ。",
     tutorialPhrase: "カードには役立つフレーズがバラバラで入ってるよ。正しい順番にタッチして完成させてね。",
     tutorialGlossary: "本はことば帳。ことばの絵、発音、音声がぜんぶ入ってるよ。",
     tutorialChipMusic: "おんがく", tutorialChipLang: "げんご", tutorialChipNight: "よる",
+    tutorialTalk: "ライブトークで話し方を学ぼう：SPEAKING PRACTICE は文をくり返して声で直してもらえる。AI PRACTICE は自由な会話。最初にレベルテストがあるよ。", tutorialCatcher: "CLOUD CATCHER は60秒のゲーム：単語を言って雲をつかまえよう。つかまえるたびに時間がふえるよ！", tutorialTop: "上には：移動・追従 でパネルを置き、太陽と月で明るさを下げ、つなぐ でウェブ用のコードがもらえるよ。",
     tutorialDontShow: "もう表示しない", tutorialNext: "つぎへ ▸", tutorialSkip: "スキップ", tutorialDone: "はじめる！",
     liveTalk: "ライブ会話", liveTalkHint: "リアルな会話を練習", liveTalkPrompt: "今日は誰と\n話しますか？ ✦", liveTalkAI: "AIと話す", liveTalkAIHint: "ロールプレイで添削", liveTalkHuman: "人と話す", liveTalkHumanHint: "翻訳して返事を手伝います",
     talkPickScene: "どこで\n練習しますか？ ✦", sceneCafe: "カフェ", sceneCafeHint: "飲み物を注文しよう", sceneAirport: "空港", sceneAirportHint: "チェックインしよう", sceneFriend: "新しい友だち", sceneFriendHint: "自己紹介して話そう", sceneRoom: "わたしの部屋", sceneRoomHint: "部屋の物について話そう", talkMission: "ミッション", talkYou: "あなた", talkEnd: "おわる", talkSummary: "まとめを見る ★", talkPerfect: "完璧！自然に聞こえます。", talkBetter: "より自然に：", talkThinking: "考え中…", talkNewScene: "別のシーン", talkDone: "会話クリア！", talkFailed: "会話を続けられませんでした。もう一度どうぞ。", talkRoomEmpty: "このシーンは先に部屋をスキャンしてね。",
@@ -284,6 +302,8 @@ const COPY: Record<LanguageId, Record<LingoCopyKey, string>> = {
     humanEcho: "聞き取った言葉", humanMyTurn: "わたしの番", humanGood: "✓ よく言えました！",
     drillSentence: "文", drillYourWords: "✦ スキャンした単語：", talkHint: "なんて言う？", talkSuggestTitle: "こう言えます：", drillSayStep: "👂 聞いてから「言う」を長押しして、文をまるごとくり返そう", drillSay: "言う", drillFinal: "会話をぜんぶ通してみよう！", drillFinalStep: "🎙 思い出して答えよう：「言う」を長押し", drillPreparing: "レッスンを準備中…", drillScore: "{total}文中{count}文できました！", talkSubtitles: "字幕",
     levelTitle: "レベルチェック", levelAsk: "{language}はどのくらい話せる？ ✦", levelNone: "ぜんぜん", levelSome: "単語を少し", levelGetBy: "なんとか話せる", levelGood: "けっこう話せる", levelAnswer: "答える", levelDontKnow: "わからない ▸", levelYour: "あなたのレベル：", levelContinue: "つぎへ ▸", levelChange: "変更", levelHint: "🎙「答える」を長押しして声で答えよう", levelA0: "完全な初心者", levelA1: "初心者", levelA2: "初級", levelB1: "中級", levelB2: "上級",
+    webConnect: "つなぐ", webTitle: "ウェブで進み具合を見よう！", webStep1: "1. ひらく：", webStep2: "2. このコードを入力：", webWaiting: "接続中…", webDone: "OK",
+    webCode: "ウェブで進み具合を見る：",
     catcherSay: "言う", catcherResult: "{count}語つかまえた！最高連続：{streak}", catcherPractice: "練習しよう：", catcherPlayAgain: "もう一回", catcherEntry: "声で単語をつかまえよう！", catcherBadge: "★ ゲーム！", talkHoldOrListen: "長押しで話すか、文を聞いてね。", catcherGoal: "目標：{two}語で★★・{three}語で★★★・正解ごとに⏱+5秒", catcherToNext: "{stars}まであと{count}", catcherMissing: "{stars}まであと{count}語だったよ！", catcherDone: "ラウンドクリア！", gameScore: "スコア", gameStreak: "最高連続", gameCorrect: "正解した\n単語", gameToPractice: "練習する\n単語",
   },
 }
